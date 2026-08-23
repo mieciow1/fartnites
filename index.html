@@ -276,6 +276,7 @@
 
     <div id="use-progress"><div id="use-progress-fill"></div></div>
     <div id="enemies-count">Wrogowie: <span id="enemy-num">25</span></div>
+    <button id="touch-toggle-btn" onclick="toggleTouchControls()" style="display:none; position:absolute; top:20px; left:50%; transform:translateX(-50%); z-index:8; background:rgba(0,0,0,0.6); color:#00ffcc; border:2px solid #00ffcc; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:bold; cursor:pointer;">📱 Sterowanie dotykowe</button>
     <div id="protection-timer">🛡️ Ochrona przed botami: <span id="prot-sec">10</span>s</div>
     <div class="crosshair" id="crosshair"></div>
     <div id="edit-prompt">[G] Edytuj Ścianę</div>
@@ -362,10 +363,11 @@
         let isFreebuild = false;
 
         function isMobileDevice() {
-            return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-                || (window.innerWidth <= 900 && 'ontouchstart' in window);
+            return /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(navigator.userAgent)
+                || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1)
+                || 'ontouchstart' in window;
         }
-        const isMobile = isMobileDevice();
+        let isMobile = isMobileDevice();
 
         // ============================================
         // KONFIGURACJA FIREBASE - PODMIEŃ DANE PONIŻEJ
@@ -668,6 +670,7 @@
             document.getElementById('enemies-count').style.display = isFreebuild ? 'none' : 'block';
             document.getElementById('crosshair').style.display = 'block';
             document.getElementById('controls-info').style.display = isMobile ? 'none' : 'block';
+            document.getElementById('touch-toggle-btn').style.display = 'block';
             
             document.getElementById('current-skin-display').innerText = selectedSkin.toUpperCase();
 
@@ -757,6 +760,7 @@
             document.getElementById('edit-overlay').style.display = 'none';
             document.getElementById('touch-controls').style.display = 'none';
             document.getElementById('touch-look-zone').style.display = 'none';
+            document.getElementById('touch-toggle-btn').style.display = 'none';
             
             document.getElementById('gems-count').innerText = playerGems;
             document.getElementById('lobby').style.display = 'flex';
@@ -1610,6 +1614,7 @@
             if (isMobile) {
                 setupTouchJoystick();
                 setupTouchLook();
+                touchListenersReady = true;
             }
         }
 
@@ -1723,6 +1728,28 @@
             e.preventDefault();
             if (inBus) return;
             dropCurrentItem();
+        }
+
+        let touchListenersReady = false;
+        function toggleTouchControls() {
+            isMobile = !isMobile;
+            if (isMobile) {
+                if (document.pointerLockElement) document.exitPointerLock();
+                document.getElementById('touch-controls').style.display = 'block';
+                document.getElementById('touch-look-zone').style.display = 'block';
+                document.getElementById('controls-info').style.display = 'none';
+                if (!touchListenersReady) {
+                    setupTouchJoystick();
+                    setupTouchLook();
+                    touchListenersReady = true;
+                }
+            } else {
+                document.getElementById('touch-controls').style.display = 'none';
+                document.getElementById('touch-look-zone').style.display = 'none';
+                document.getElementById('controls-info').style.display = 'block';
+                moveForward = moveBackward = moveLeft = moveRight = false;
+                document.body.requestPointerLock();
+            }
         }
 
         function checkCollisions(newPos) {
