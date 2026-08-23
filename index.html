@@ -140,6 +140,24 @@
     <div id="lobby">
         <h1>FORTNITE BR 3D</h1>
         <div id="gems-display-lobby">💎 Gemy: <span id="gems-count">0</span></div>
+
+        <div id="auth-panel" style="background:rgba(0,0,0,0.5); border:2px solid #00ffcc; border-radius:12px; padding:15px; margin-bottom:15px; width:260px; text-align:center; box-sizing:border-box;">
+            <div id="auth-logged-out">
+                <div style="display:flex; gap:8px; margin-bottom:8px;">
+                    <button id="tab-login" onclick="switchAuthTab('login')" style="flex:1; padding:6px; border-radius:6px; border:none; cursor:pointer; font-weight:bold; background:#00ffcc; color:#000;">Zaloguj</button>
+                    <button id="tab-register" onclick="switchAuthTab('register')" style="flex:1; padding:6px; border-radius:6px; border:none; cursor:pointer; font-weight:bold; background:#333; color:#fff;">Zarejestruj</button>
+                </div>
+                <input type="text" id="auth-username" placeholder="Nazwa użytkownika" style="width:100%; padding:8px; margin-bottom:6px; border-radius:6px; border:none; box-sizing:border-box;">
+                <input type="password" id="auth-password" placeholder="Hasło" style="width:100%; padding:8px; margin-bottom:8px; border-radius:6px; border:none; box-sizing:border-box;">
+                <button id="auth-submit-btn" onclick="submitAuth()" style="width:100%; padding:8px; font-size:14px; background:#ff0055; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">Zaloguj się</button>
+                <div id="auth-msg" style="color:#ff5555; font-size:12px; margin-top:6px; min-height:14px;"></div>
+            </div>
+            <div id="auth-logged-in" style="display:none;">
+                Zalogowano jako: <b id="auth-username-display" style="color:#00ffcc;"></b><br>
+                <button style="margin-top:8px; padding:6px 16px; font-size:14px; background:#ff0055; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="logoutUser()">Wyloguj</button>
+            </div>
+        </div>
+
         <p>Wybierz Skin lub kup w Sklepie (300 💎):</p>
         
         <div class="skin-container">
@@ -249,6 +267,10 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
     <script>
         let playerGems = 0;
         let unlockedSkins = {
@@ -265,6 +287,159 @@
         let selectedSkin = 'overlost';
         let unlockedPralka = true;
         let isFreebuild = false;
+
+        // ============================================
+        // KONFIGURACJA FIREBASE - PODMIEŃ DANE PONIŻEJ
+        // Wklej tu config ze swojego projektu Firebase
+        // (Project settings -> General -> Your apps -> Config)
+        // ============================================
+        const firebaseConfig = {
+            apiKey: "TWOJ_API_KEY",
+            authDomain: "TWOJ_PROJEKT.firebaseapp.com",
+            projectId: "TWOJ_PROJEKT",
+            storageBucket: "TWOJ_PROJEKT.appspot.com",
+            messagingSenderId: "TWOJ_SENDER_ID",
+            appId: "TWOJ_APP_ID"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        let currentUser = null;
+        let authMode = 'login';
+
+        // Zamienia nazwę użytkownika na "fałszywy" e-mail wymagany przez Firebase Auth
+        function usernameToEmail(username) {
+            const clean = username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+            return clean + '@fortnitebr3d-users.local';
+        }
+
+        function showAuthMsg(msg) {
+            const el = document.getElementById('auth-msg');
+            if (el) el.innerText = msg;
+        }
+
+        function translateAuthError(e) {
+            const code = e.code || '';
+            if (code.includes('email-already-in-use')) return 'Ta nazwa użytkownika jest już zajęta.';
+            if (code.includes('weak-password')) return 'Hasło musi mieć min. 6 znaków.';
+            if (code.includes('user-not-found') || code.includes('wrong-password') || code.includes('invalid-credential')) return 'Błędna nazwa użytkownika lub hasło.';
+            if (code.includes('invalid-email')) return 'Nazwa użytkownika zawiera niedozwolone znaki (użyj liter/cyfr).';
+            if (code.includes('network-request-failed')) return 'Brak połączenia z serwerem.';
+            return 'Błąd: ' + (e.message || code);
+        }
+
+        function switchAuthTab(mode) {
+            authMode = mode;
+            const tabLogin = document.getElementById('tab-login');
+            const tabRegister = document.getElementById('tab-register');
+            tabLogin.style.background = mode === 'login' ? '#00ffcc' : '#333';
+            tabLogin.style.color = mode === 'login' ? '#000' : '#fff';
+            tabRegister.style.background = mode === 'register' ? '#00ffcc' : '#333';
+            tabRegister.style.color = mode === 'register' ? '#000' : '#fff';
+            document.getElementById('auth-submit-btn').innerText = mode === 'login' ? 'Zaloguj się' : 'Zarejestruj się';
+            showAuthMsg('');
+        }
+
+        function submitAuth() {
+            if (authMode === 'login') loginUser(); else registerUser();
+        }
+
+        async function registerUser() {
+            const username = document.getElementById('auth-username').value.trim();
+            const password = document.getElementById('auth-password').value;
+            if (!username || !password) { showAuthMsg('Podaj nazwę użytkownika i hasło.'); return; }
+            if (password.length < 6) { showAuthMsg('Hasło musi mieć min. 6 znaków.'); return; }
+            const email = usernameToEmail(username);
+            if (email.startsWith('@')) { showAuthMsg('Nazwa użytkownika musi zawierać litery lub cyfry.'); return; }
+            showAuthMsg('Tworzenie konta...');
+            try {
+                const cred = await auth.createUserWithEmailAndPassword(email, password);
+                await db.collection('users').doc(cred.user.uid).set({
+                    username: username,
+                    gems: playerGems,
+                    unlockedSkins: unlockedSkins
+                });
+                showAuthMsg('');
+            } catch (e) {
+                showAuthMsg(translateAuthError(e));
+            }
+        }
+
+        async function loginUser() {
+            const username = document.getElementById('auth-username').value.trim();
+            const password = document.getElementById('auth-password').value;
+            if (!username || !password) { showAuthMsg('Podaj nazwę użytkownika i hasło.'); return; }
+            showAuthMsg('Logowanie...');
+            try {
+                await auth.signInWithEmailAndPassword(usernameToEmail(username), password);
+                showAuthMsg('');
+            } catch (e) {
+                showAuthMsg(translateAuthError(e));
+            }
+        }
+
+        function logoutUser() {
+            auth.signOut();
+            document.getElementById('auth-username').value = '';
+            document.getElementById('auth-password').value = '';
+        }
+
+        function refreshSkinLocks() {
+            Object.keys(unlockedSkins).forEach(skin => {
+                if (unlockedSkins[skin]) {
+                    const card = document.getElementById(`card-${skin}`);
+                    if (card) card.classList.remove('locked');
+                    const btn = document.getElementById(`buy-${skin}`);
+                    if (btn) btn.style.display = 'none';
+                }
+            });
+        }
+
+        async function saveProgress() {
+            if (!currentUser) return;
+            try {
+                await db.collection('users').doc(currentUser.uid).set({
+                    gems: playerGems,
+                    unlockedSkins: unlockedSkins
+                }, { merge: true });
+            } catch (e) {
+                console.error('Błąd zapisu postępu:', e);
+            }
+        }
+
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUser = user;
+                let displayName = user.email.split('@')[0];
+                try {
+                    const doc = await db.collection('users').doc(user.uid).get();
+                    if (doc.exists) {
+                        const data = doc.data();
+                        if (typeof data.gems === 'number') playerGems = data.gems;
+                        if (data.unlockedSkins) Object.assign(unlockedSkins, data.unlockedSkins);
+                        if (data.username) displayName = data.username;
+                    } else {
+                        await db.collection('users').doc(user.uid).set({
+                            username: displayName,
+                            gems: playerGems,
+                            unlockedSkins: unlockedSkins
+                        });
+                    }
+                } catch (e) {
+                    console.error('Błąd wczytywania danych:', e);
+                    showAuthMsg('Zalogowano, ale nie udało się wczytać danych.');
+                }
+                document.getElementById('gems-count').innerText = playerGems;
+                refreshSkinLocks();
+                document.getElementById('auth-logged-out').style.display = 'none';
+                document.getElementById('auth-logged-in').style.display = 'block';
+                document.getElementById('auth-username-display').innerText = displayName;
+            } else {
+                currentUser = null;
+                document.getElementById('auth-logged-out').style.display = 'block';
+                document.getElementById('auth-logged-in').style.display = 'none';
+            }
+        });
         
         let scene, camera, playerGroup, cameraPitchObject, renderer;
         let battleBusGroup;
@@ -330,6 +505,7 @@
                 if (btn) btn.style.display = 'none';
                 
                 selectSkin(skinName);
+                saveProgress();
             } else if (playerGems < 300) {
                 alert("Masz za mało gemów! Wygraj mecz BR, aby zdobyć 100 💎.");
             }
@@ -1479,6 +1655,7 @@
                 playerGems += 100;
                 reward.innerText = "🎁 ODBLOKOWANO: CZONY NA PRALCE + 100 💎 GEMÓW!";
                 reward.style.display = 'block';
+                saveProgress();
             } else {
                 title.innerText = "ELIMINACJA! 💀";
                 title.style.color = "#ff0055";
