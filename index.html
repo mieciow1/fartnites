@@ -126,6 +126,52 @@
         }
         #controls-info b { color: #00ffcc; }
 
+        #touch-look-zone {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 4; touch-action: none;
+        }
+
+        #touch-controls {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 7; pointer-events: none;
+        }
+
+        #joystick-zone {
+            position: absolute; bottom: 30px; left: 30px; width: 130px; height: 130px;
+            pointer-events: auto; touch-action: none;
+        }
+        #joystick-base {
+            width: 100%; height: 100%; border-radius: 50%; background: rgba(255,255,255,0.15);
+            border: 3px solid rgba(0,255,204,0.6); display: flex; align-items: center; justify-content: center;
+        }
+        #joystick-knob {
+            width: 50px; height: 50px; border-radius: 50%; background: rgba(0,255,204,0.75);
+            border: 2px solid #fff;
+        }
+
+        #touch-action-row {
+            position: absolute; bottom: 175px; left: 30px; display: flex; gap: 8px; pointer-events: auto;
+        }
+
+        #touch-right-controls {
+            position: absolute; bottom: 30px; right: 25px; display: flex; align-items: flex-end; gap: 12px; pointer-events: auto;
+        }
+        #touch-right-controls .side-btns { display: flex; flex-direction: column; gap: 10px; }
+
+        .touch-btn {
+            width: 54px; height: 54px; border-radius: 50%; background: rgba(0,0,0,0.55);
+            border: 2px solid rgba(0,255,204,0.7); color: #fff; font-size: 22px; display: flex;
+            align-items: center; justify-content: center; user-select: none; -webkit-user-select: none;
+            touch-action: none; padding: 0;
+        }
+        .touch-btn:active { background: rgba(0,255,204,0.4); }
+        .touch-btn.small { width: 42px; height: 42px; font-size: 16px; }
+        .touch-btn.fire {
+            width: 75px; height: 75px; font-size: 30px; background: rgba(255,0,85,0.55);
+            border-color: #ff0055;
+        }
+        .touch-btn.fire:active { background: rgba(255,0,85,0.85); }
+
         #game-over {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 20; flex-direction: column; align-items: center; justify-content: center; color: white;
@@ -220,12 +266,12 @@
     </div>
 
     <div id="inventory-bar">
-        <div class="inv-slot active" id="slot-0"><span class="inv-key">1</span><span class="inv-icon">🔫</span><span class="inv-qty">∞</span></div>
-        <div class="inv-slot" id="slot-1"><span class="inv-key">2</span><span class="inv-icon">❌</span><span class="inv-qty"></span></div>
-        <div class="inv-slot" id="slot-2"><span class="inv-key">3</span><span class="inv-icon">❌</span><span class="inv-qty"></span></div>
-        <div class="inv-slot" id="slot-3"><span class="inv-key">4</span><span class="inv-icon">🧪</span><span class="inv-qty">x1</span></div>
-        <div class="inv-slot" id="slot-4"><span class="inv-key">5</span><span class="inv-icon">❌</span><span class="inv-qty"></span></div>
-        <div class="inv-slot" id="slot-5"><span class="inv-key">6</span><span class="inv-icon">❌</span><span class="inv-qty"></span></div>
+        <div class="inv-slot active" id="slot-0" onclick="switchSlot(0)"><span class="inv-key">1</span><span class="inv-icon">🔫</span><span class="inv-qty">∞</span></div>
+        <div class="inv-slot" id="slot-1" onclick="switchSlot(1)"><span class="inv-key">2</span><span class="inv-icon">❌</span><span class="inv-qty"></span></div>
+        <div class="inv-slot" id="slot-2" onclick="switchSlot(2)"><span class="inv-key">3</span><span class="inv-icon">❌</span><span class="inv-qty"></span></div>
+        <div class="inv-slot" id="slot-3" onclick="switchSlot(3)"><span class="inv-key">4</span><span class="inv-icon">🧪</span><span class="inv-qty">x1</span></div>
+        <div class="inv-slot" id="slot-4" onclick="switchSlot(4)"><span class="inv-key">5</span><span class="inv-icon">❌</span><span class="inv-qty"></span></div>
+        <div class="inv-slot" id="slot-5" onclick="switchSlot(5)"><span class="inv-key">6</span><span class="inv-icon">❌</span><span class="inv-qty"></span></div>
     </div>
 
     <div id="use-progress"><div id="use-progress-fill"></div></div>
@@ -259,6 +305,33 @@
         • <b>Przytrzymaj LPM</b> = Strzał | <b>Z/X/C/V</b> = Budowanie | <b>G</b> = Edycja | <b>ESC</b> = Lobby
     </div>
 
+    <div id="touch-look-zone"></div>
+
+    <div id="touch-controls">
+        <div id="joystick-zone">
+            <div id="joystick-base">
+                <div id="joystick-knob"></div>
+            </div>
+        </div>
+
+        <div id="touch-action-row">
+            <button class="touch-btn" ontouchstart="touchBuild(event,'wall')">🧱</button>
+            <button class="touch-btn" ontouchstart="touchBuild(event,'ramp')">◢</button>
+            <button class="touch-btn" ontouchstart="touchBuild(event,'floor')">▬</button>
+            <button class="touch-btn" ontouchstart="touchBuild(event,'cone')">▲</button>
+            <button class="touch-btn" ontouchstart="touchEdit(event)">✏️</button>
+        </div>
+
+        <div id="touch-right-controls">
+            <div class="side-btns">
+                <button class="touch-btn small" ontouchstart="touchDrop(event)">🗑️</button>
+                <button class="touch-btn small" ontouchstart="touchUse(event)">E</button>
+                <button class="touch-btn" ontouchstart="touchJump(event)">⬆️</button>
+            </div>
+            <button class="touch-btn fire" ontouchstart="touchFireStart(event)" ontouchend="touchFireEnd(event)" ontouchcancel="touchFireEnd(event)">🔫</button>
+        </div>
+    </div>
+
     <div id="game-over">
         <h2 id="go-title">VICTORY ROYALE!</h2>
         <div id="reward-text">🎁 ODBLOKOWANO NOWY SKIN: CZONY NA PRALCE!</div>
@@ -287,6 +360,12 @@
         let selectedSkin = 'overlost';
         let unlockedPralka = true;
         let isFreebuild = false;
+
+        function isMobileDevice() {
+            return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+                || (window.innerWidth <= 900 && 'ontouchstart' in window);
+        }
+        const isMobile = isMobileDevice();
 
         // ============================================
         // KONFIGURACJA FIREBASE - PODMIEŃ DANE PONIŻEJ
@@ -588,7 +667,7 @@
             document.getElementById('inventory-bar').style.display = 'flex';
             document.getElementById('enemies-count').style.display = isFreebuild ? 'none' : 'block';
             document.getElementById('crosshair').style.display = 'block';
-            document.getElementById('controls-info').style.display = 'block';
+            document.getElementById('controls-info').style.display = isMobile ? 'none' : 'block';
             
             document.getElementById('current-skin-display').innerText = selectedSkin.toUpperCase();
 
@@ -637,7 +716,12 @@
             }
 
             animate();
-            document.body.requestPointerLock();
+            if (isMobile) {
+                document.getElementById('touch-controls').style.display = 'block';
+                document.getElementById('touch-look-zone').style.display = 'block';
+            } else {
+                document.body.requestPointerLock();
+            }
         }
 
         function jumpFromBus() {
@@ -671,6 +755,8 @@
             document.getElementById('interact-prompt').style.display = 'none';
             document.getElementById('bus-prompt').style.display = 'none';
             document.getElementById('edit-overlay').style.display = 'none';
+            document.getElementById('touch-controls').style.display = 'none';
+            document.getElementById('touch-look-zone').style.display = 'none';
             
             document.getElementById('gems-count').innerText = playerGems;
             document.getElementById('lobby').style.display = 'flex';
@@ -1194,6 +1280,10 @@
                 cell.addEventListener('mouseenter', () => {
                     if (isMouseDownGrid) toggleCell(cell);
                 });
+                cell.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    toggleCell(cell);
+                }, { passive: false });
             });
             document.addEventListener('mouseup', () => { isMouseDownGrid = false; });
         }
@@ -1215,7 +1305,7 @@
                 if (targetWallForEdit && targetWallForEdit.userData.type === 'wall') {
                     isEditing = true;
                     isMouseDown = false;
-                    document.exitPointerLock();
+                    if (!isMobile) document.exitPointerLock();
                     selectedCells.clear();
                     
                     const tiles = targetWallForEdit.userData.tiles || Array(9).fill(true);
@@ -1235,7 +1325,7 @@
                 }
                 isEditing = false;
                 document.getElementById('edit-overlay').style.display = 'none';
-                document.body.requestPointerLock();
+                if (!isMobile) document.body.requestPointerLock();
             }
         }
 
@@ -1480,6 +1570,7 @@
             });
 
             document.body.addEventListener('mousedown', (e) => {
+                if (isMobile) return;
                 if (e.target.closest('#game-over') || e.target.closest('#lobby') || isEditing) return;
 
                 if (document.pointerLockElement === document.body) {
@@ -1515,6 +1606,123 @@
                     cameraPitchObject.rotation.x = cameraPitch;
                 }
             });
+
+            if (isMobile) {
+                setupTouchJoystick();
+                setupTouchLook();
+            }
+        }
+
+        function setupTouchJoystick() {
+            const zone = document.getElementById('joystick-zone');
+            const knob = document.getElementById('joystick-knob');
+            const maxDist = 45;
+            const threshold = 12;
+            let active = false;
+            let originX = 0, originY = 0;
+
+            function handleStart(e) {
+                active = true;
+                const rect = zone.getBoundingClientRect();
+                originX = rect.left + rect.width / 2;
+                originY = rect.top + rect.height / 2;
+                e.preventDefault();
+            }
+            function handleMove(e) {
+                if (!active) return;
+                const touch = e.changedTouches[0];
+                let dx = touch.clientX - originX;
+                let dy = touch.clientY - originY;
+                const dist = Math.min(Math.hypot(dx, dy), maxDist);
+                const angle = Math.atan2(dy, dx);
+                const kx = Math.cos(angle) * dist;
+                const ky = Math.sin(angle) * dist;
+                knob.style.transform = `translate(${kx}px, ${ky}px)`;
+
+                moveForward = ky < -threshold;
+                moveBackward = ky > threshold;
+                moveLeft = kx < -threshold;
+                moveRight = kx > threshold;
+                e.preventDefault();
+            }
+            function handleEnd(e) {
+                active = false;
+                knob.style.transform = 'translate(0px, 0px)';
+                moveForward = moveBackward = moveLeft = moveRight = false;
+                e.preventDefault();
+            }
+
+            zone.addEventListener('touchstart', handleStart, { passive: false });
+            zone.addEventListener('touchmove', handleMove, { passive: false });
+            zone.addEventListener('touchend', handleEnd, { passive: false });
+            zone.addEventListener('touchcancel', handleEnd, { passive: false });
+        }
+
+        function setupTouchLook() {
+            const zone = document.getElementById('touch-look-zone');
+            let lastX = 0, lastY = 0;
+            let touching = false;
+
+            zone.addEventListener('touchstart', (e) => {
+                if (isEditing || inBus) return;
+                const t = e.changedTouches[0];
+                lastX = t.clientX;
+                lastY = t.clientY;
+                touching = true;
+            }, { passive: true });
+
+            zone.addEventListener('touchmove', (e) => {
+                if (!touching || isEditing || inBus) return;
+                const t = e.changedTouches[0];
+                const dx = t.clientX - lastX;
+                const dy = t.clientY - lastY;
+                lastX = t.clientX;
+                lastY = t.clientY;
+
+                playerGroup.rotation.y -= dx * 0.006;
+                cameraPitch -= dy * 0.006;
+                cameraPitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, cameraPitch));
+                cameraPitchObject.rotation.x = cameraPitch;
+                e.preventDefault();
+            }, { passive: false });
+
+            zone.addEventListener('touchend', () => { touching = false; });
+            zone.addEventListener('touchcancel', () => { touching = false; });
+        }
+
+        function touchFireStart(e) {
+            e.preventDefault();
+            if (inBus || isEditing) return;
+            isMouseDown = true;
+        }
+        function touchFireEnd(e) {
+            e.preventDefault();
+            isMouseDown = false;
+        }
+        function touchJump(e) {
+            e.preventDefault();
+            if (inBus) { jumpFromBus(); return; }
+            if (canJump) { velocityY = 0.35; canJump = false; }
+        }
+        function touchBuild(e, type) {
+            e.preventDefault();
+            if (inBus || isEditing) return;
+            buildStructure(type);
+        }
+        function touchEdit(e) {
+            e.preventDefault();
+            if (inBus) return;
+            toggleEditMode();
+        }
+        function touchUse(e) {
+            e.preventDefault();
+            if (inBus) return;
+            useCurrentItem();
+        }
+        function touchDrop(e) {
+            e.preventDefault();
+            if (inBus) return;
+            dropCurrentItem();
         }
 
         function checkCollisions(newPos) {
