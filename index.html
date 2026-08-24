@@ -1668,19 +1668,28 @@
             const knob = document.getElementById('joystick-knob');
             const maxDist = 45;
             const threshold = 12;
-            let active = false;
             let originX = 0, originY = 0;
+            let touchId = null;
+
+            function findTouch(e) {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === touchId) return e.changedTouches[i];
+                }
+                return null;
+            }
 
             function handleStart(e) {
-                active = true;
+                if (touchId !== null) return;
+                const t = e.changedTouches[0];
+                touchId = t.identifier;
                 const rect = zone.getBoundingClientRect();
                 originX = rect.left + rect.width / 2;
                 originY = rect.top + rect.height / 2;
                 e.preventDefault();
             }
             function handleMove(e) {
-                if (!active) return;
-                const touch = e.changedTouches[0];
+                const touch = findTouch(e);
+                if (!touch) return;
                 let dx = touch.clientX - originX;
                 let dy = touch.clientY - originY;
                 const dist = Math.min(Math.hypot(dx, dy), maxDist);
@@ -1696,7 +1705,9 @@
                 e.preventDefault();
             }
             function handleEnd(e) {
-                active = false;
+                const touch = findTouch(e);
+                if (!touch) return;
+                touchId = null;
                 knob.style.transform = 'translate(0px, 0px)';
                 moveForward = moveBackward = moveLeft = moveRight = false;
                 e.preventDefault();
@@ -1711,19 +1722,23 @@
         function setupTouchLook() {
             const zone = document.getElementById('touch-look-zone');
             let lastX = 0, lastY = 0;
-            let touching = false;
+            let touchId = null;
 
             zone.addEventListener('touchstart', (e) => {
-                if (isEditing || inBus) return;
+                if (isEditing || inBus || touchId !== null) return;
                 const t = e.changedTouches[0];
+                touchId = t.identifier;
                 lastX = t.clientX;
                 lastY = t.clientY;
-                touching = true;
             }, { passive: true });
 
             zone.addEventListener('touchmove', (e) => {
-                if (!touching || isEditing || inBus) return;
-                const t = e.changedTouches[0];
+                if (touchId === null || isEditing || inBus) return;
+                let t = null;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === touchId) { t = e.changedTouches[i]; break; }
+                }
+                if (!t) return;
                 const dx = t.clientX - lastX;
                 const dy = t.clientY - lastY;
                 lastX = t.clientX;
@@ -1736,8 +1751,13 @@
                 e.preventDefault();
             }, { passive: false });
 
-            zone.addEventListener('touchend', () => { touching = false; });
-            zone.addEventListener('touchcancel', () => { touching = false; });
+            function endTouch(e) {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === touchId) { touchId = null; break; }
+                }
+            }
+            zone.addEventListener('touchend', endTouch);
+            zone.addEventListener('touchcancel', endTouch);
         }
 
         let lookStickX = 0, lookStickY = 0;
@@ -1745,19 +1765,28 @@
             const zone = document.getElementById('look-joystick-zone');
             const knob = document.getElementById('look-joystick-knob');
             const maxDist = 30;
-            let active = false;
             let originX = 0, originY = 0;
+            let touchId = null;
+
+            function findTouch(e) {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === touchId) return e.changedTouches[i];
+                }
+                return null;
+            }
 
             function handleStart(e) {
-                active = true;
+                if (touchId !== null) return;
+                const t = e.changedTouches[0];
+                touchId = t.identifier;
                 const rect = zone.getBoundingClientRect();
                 originX = rect.left + rect.width / 2;
                 originY = rect.top + rect.height / 2;
                 e.preventDefault();
             }
             function handleMove(e) {
-                if (!active) return;
-                const touch = e.changedTouches[0];
+                const touch = findTouch(e);
+                if (!touch) return;
                 let dx = touch.clientX - originX;
                 let dy = touch.clientY - originY;
                 const dist = Math.min(Math.hypot(dx, dy), maxDist);
@@ -1770,7 +1799,9 @@
                 e.preventDefault();
             }
             function handleEnd(e) {
-                active = false;
+                const touch = findTouch(e);
+                if (!touch) return;
+                touchId = null;
                 knob.style.transform = 'translate(0px, 0px)';
                 lookStickX = 0;
                 lookStickY = 0;
