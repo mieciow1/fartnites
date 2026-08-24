@@ -69,6 +69,7 @@
             width: 60px; height: 65px; background: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 8px;
             display: flex; flex-direction: column; align-items: center; justify-content: space-between;
             padding: 4px; box-sizing: border-box; color: white; font-weight: bold; font-size: 11px;
+            pointer-events: auto;
         }
         .inv-slot.active { border-color: #00ffcc; background: rgba(0,255,200,0.25); transform: scale(1.08); }
         .inv-icon { font-size: 24px; margin-top: 2px; }
@@ -187,6 +188,14 @@
         }
         .touch-btn.fire:active { background: rgba(255,0,85,0.85); }
 
+        #control-editor.active-editing #joystick-zone,
+        #control-editor.active-editing #look-joystick-zone,
+        #control-editor.active-editing #touch-action-row,
+        #control-editor.active-editing #touch-right-controls .side-btns,
+        #control-editor.active-editing .touch-btn.fire {
+            outline: 2px dashed #ffff00; outline-offset: 4px; cursor: grab;
+        }
+
         #game-over {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 20; flex-direction: column; align-items: center; justify-content: center; color: white;
@@ -218,6 +227,8 @@
                 <button style="margin-top:8px; padding:6px 16px; font-size:14px; background:#ff0055; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="logoutUser()">Wyloguj</button>
             </div>
         </div>
+
+        <button class="btn-main" style="margin-bottom:15px; background:#333; font-size:14px; padding:8px 20px;" onclick="openControlEditor()">⚙️ Ustawienia sterowania dotykowego</button>
 
         <p>Wybierz Skin lub kup w Sklepie (300 💎):</p>
         
@@ -351,6 +362,20 @@
                     </div>
                 </div>
                 <button class="touch-btn fire" ontouchstart="touchFireStart(event)" ontouchend="touchFireEnd(event)" ontouchcancel="touchFireEnd(event)">🔫</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="control-editor" style="display:none; position:fixed; inset:0; z-index:50; pointer-events:none;">
+        <div style="position:absolute; top:0; left:0; width:100%; padding:14px; background:rgba(0,0,0,0.9); box-sizing:border-box; pointer-events:auto; text-align:center;">
+            <div style="color:#00ffcc; font-weight:bold; margin-bottom:10px;">Przeciągnij przyciski w dowolne miejsce ekranu</div>
+            <div style="display:flex; gap:20px; justify-content:center; flex-wrap:wrap; color:white; font-size:13px; margin-bottom:10px;">
+                <label>Rozmiar <input type="range" id="ctrl-scale-slider" min="0.6" max="1.6" step="0.05" value="1"></label>
+                <label>Przezroczystość <input type="range" id="ctrl-opacity-slider" min="0.3" max="1" step="0.05" value="1"></label>
+            </div>
+            <div>
+                <button onclick="resetControlLayout()" style="margin-right:10px; padding:6px 14px; border-radius:6px; border:none; background:#ff0055; color:#fff; font-weight:bold; cursor:pointer;">Domyślne</button>
+                <button onclick="closeControlEditor()" style="padding:6px 14px; border-radius:6px; border:none; background:#00ffcc; color:#000; font-weight:bold; cursor:pointer;">Zamknij</button>
             </div>
         </div>
     </div>
@@ -542,6 +567,10 @@
                         if (typeof data.gems === 'number') playerGems = data.gems;
                         if (data.unlockedSkins) Object.assign(unlockedSkins, data.unlockedSkins);
                         if (data.username) displayName = data.username;
+                        if (data.controlSettings) {
+                            controlLayout = Object.assign({ positions: {}, scale: 1, opacity: 1 }, data.controlSettings);
+                            if (editorElementsInitialized) applyControlLayout();
+                        }
                     } else {
                         await db.collection('users').doc(user.uid).set({
                             username: displayName,
@@ -766,6 +795,8 @@
             if (isMobile) {
                 document.getElementById('touch-controls').style.display = 'block';
                 document.getElementById('touch-look-zone').style.display = 'block';
+                if (!editorElementsInitialized) initDraggableGroups();
+                applyControlLayout();
             } else {
                 document.body.requestPointerLock();
             }
@@ -1873,6 +1904,8 @@
                     setupLookJoystick();
                     touchListenersReady = true;
                 }
+                if (!editorElementsInitialized) initDraggableGroups();
+                applyControlLayout();
             } else {
                 document.getElementById('touch-controls').style.display = 'none';
                 document.getElementById('touch-look-zone').style.display = 'none';
@@ -1881,6 +1914,153 @@
                 document.body.requestPointerLock();
             }
         }
+
+        // ============================================
+        // EDYTOR ROZMIESZCZENIA STEROWANIA DOTYKOWEGO
+        // ============================================
+        let controlLayout = { positions: {}, scale: 1, opacity: 1 };
+        let editorElementsInitialized = false;
+        const draggableGroups = { moveJoystick: null, lookJoystick: null, fireBtn: null, buildRow: null, sideBtns: null };
+
+        function initDraggableGroups() {
+            draggableGroups.moveJoystick = document.getElementById('joystick-zone');
+            draggableGroups.lookJoystick = document.getElementById('look-joystick-zone');
+            draggableGroups.fireBtn = document.querySelector('.touch-btn.fire');
+            draggableGroups.buildRow = document.getElementById('touch-action-row');
+            draggableGroups.sideBtns = document.querySelector('#touch-right-controls .side-btns');
+            Object.keys(draggableGroups).forEach(key => {
+                if (draggableGroups[key]) makeDraggable(draggableGroups[key], key);
+            });
+            editorElementsInitialized = true;
+        }
+
+        function freezePosition(el) {
+            if (el.dataset.frozen === '1') return;
+            const rect = el.getBoundingClientRect();
+            el.style.position = 'fixed';
+            el.style.left = rect.left + 'px';
+            el.style.top = rect.top + 'px';
+            el.style.right = 'auto';
+            el.style.bottom = 'auto';
+            el.style.margin = '0';
+            el.style.transformOrigin = 'top left';
+            el.dataset.frozen = '1';
+        }
+
+        function makeDraggable(el, key) {
+            let dragging = false;
+            let offsetX = 0, offsetY = 0;
+
+            el.addEventListener('pointerdown', (e) => {
+                if (document.getElementById('control-editor').style.display !== 'block') return;
+                freezePosition(el);
+                dragging = true;
+                el.setPointerCapture(e.pointerId);
+                const rect = el.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+                e.preventDefault();
+            });
+            el.addEventListener('pointermove', (e) => {
+                if (!dragging) return;
+                let newLeft = e.clientX - offsetX;
+                let newTop = e.clientY - offsetY;
+                newLeft = Math.max(0, Math.min(window.innerWidth - el.offsetWidth, newLeft));
+                newTop = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, newTop));
+                el.style.left = newLeft + 'px';
+                el.style.top = newTop + 'px';
+                e.preventDefault();
+            });
+            function endDrag(e) {
+                if (!dragging) return;
+                dragging = false;
+                const rect = el.getBoundingClientRect();
+                controlLayout.positions[key] = {
+                    xPct: (rect.left / window.innerWidth) * 100,
+                    yPct: (rect.top / window.innerHeight) * 100
+                };
+                saveControlSettings();
+            }
+            el.addEventListener('pointerup', endDrag);
+            el.addEventListener('pointercancel', endDrag);
+        }
+
+        function applyControlLayout() {
+            Object.keys(draggableGroups).forEach(key => {
+                const el = draggableGroups[key];
+                if (!el) return;
+                const pos = controlLayout.positions[key];
+                if (pos) {
+                    freezePosition(el);
+                    el.style.left = (pos.xPct / 100 * window.innerWidth) + 'px';
+                    el.style.top = (pos.yPct / 100 * window.innerHeight) + 'px';
+                }
+                el.style.transform = 'scale(' + (controlLayout.scale || 1) + ')';
+                el.style.opacity = controlLayout.opacity != null ? controlLayout.opacity : 1;
+            });
+        }
+
+        function resetControlLayout() {
+            controlLayout = { positions: {}, scale: 1, opacity: 1 };
+            Object.values(draggableGroups).forEach(el => {
+                if (!el) return;
+                el.style.position = '';
+                el.style.left = '';
+                el.style.top = '';
+                el.style.right = '';
+                el.style.bottom = '';
+                el.style.transform = '';
+                el.style.opacity = '';
+                el.dataset.frozen = '0';
+            });
+            document.getElementById('ctrl-scale-slider').value = 1;
+            document.getElementById('ctrl-opacity-slider').value = 1;
+            saveControlSettings();
+        }
+
+        function openControlEditor() {
+            if (!editorElementsInitialized) initDraggableGroups();
+            document.getElementById('touch-controls').style.display = 'block';
+            document.getElementById('control-editor').style.display = 'block';
+            applyControlLayout();
+            document.getElementById('ctrl-scale-slider').value = controlLayout.scale || 1;
+            document.getElementById('ctrl-opacity-slider').value = controlLayout.opacity != null ? controlLayout.opacity : 1;
+        }
+
+        function closeControlEditor() {
+            document.getElementById('control-editor').style.display = 'none';
+            if (document.getElementById('lobby').style.display !== 'none') {
+                document.getElementById('touch-controls').style.display = 'none';
+            }
+        }
+
+        async function saveControlSettings() {
+            if (!currentUser) {
+                showToast('⚠️ Zaloguj się, aby zapisać ustawienia sterowania.', true);
+                return;
+            }
+            try {
+                await db.collection('users').doc(currentUser.uid).set({
+                    controlSettings: controlLayout
+                }, { merge: true });
+                showToast('✅ Zapisano ustawienia sterowania');
+            } catch (e) {
+                console.error('Błąd zapisu ustawień sterowania:', e);
+                showToast('❌ Błąd zapisu ustawień: ' + (e.code || e.message || e), true);
+            }
+        }
+
+        document.getElementById('ctrl-scale-slider').addEventListener('input', (e) => {
+            controlLayout.scale = parseFloat(e.target.value);
+            applyControlLayout();
+        });
+        document.getElementById('ctrl-scale-slider').addEventListener('change', saveControlSettings);
+
+        document.getElementById('ctrl-opacity-slider').addEventListener('input', (e) => {
+            controlLayout.opacity = parseFloat(e.target.value);
+            applyControlLayout();
+        });
+        document.getElementById('ctrl-opacity-slider').addEventListener('change', saveControlSettings);
 
         function checkCollisions(newPos) {
             const playerRadius = 0.5;
