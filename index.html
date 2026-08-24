@@ -85,6 +85,15 @@
 
         #enemies-count { position: absolute; top: 20px; right: 20px; color: #ff0055; font-size: 22px; font-weight: bold; background: rgba(0,0,0,0.6); padding: 10px 15px; border-radius: 8px; display: none; pointer-events: none; }
 
+        #minimap-container {
+            position: absolute; top: 70px; right: 20px; width: 160px; height: 160px;
+            border-radius: 50%; border: 3px solid rgba(255,255,255,0.7); overflow: hidden;
+            background: rgba(10,30,10,0.55); z-index: 5; display: none; pointer-events: none;
+            box-shadow: 0 0 12px rgba(0,0,0,0.5);
+        }
+        #minimap-canvas { width: 100%; height: 100%; display: block; }
+        #minimap-north { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 10px; font-weight: bold; text-shadow: 1px 1px 2px #000; }
+
         .crosshair {
             position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
             background: transparent; border: 2px solid #00ffcc; border-radius: 50%; transform: translate(-50%, -50%);
@@ -302,6 +311,10 @@
 
     <div id="use-progress"><div id="use-progress-fill"></div></div>
     <div id="enemies-count">Wrogowie: <span id="enemy-num">25</span></div>
+    <div id="minimap-container">
+        <span id="minimap-north">N</span>
+        <canvas id="minimap-canvas" width="160" height="160"></canvas>
+    </div>
     <button id="touch-toggle-btn" onclick="toggleTouchControls()" style="display:none; position:absolute; top:20px; left:50%; transform:translateX(-50%); z-index:8; background:rgba(0,0,0,0.6); color:#00ffcc; border:2px solid #00ffcc; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:bold; cursor:pointer;">📱 Sterowanie dotykowe</button>
     <div id="protection-timer">🛡️ Ochrona przed botami: <span id="prot-sec">10</span>s</div>
     <div class="crosshair" id="crosshair"></div>
@@ -644,7 +657,10 @@
         let animationFrameId = null;
 
         let zoneMesh;
-        let zoneRadius = 220;
+        let minimapCtx = null;
+        const MAP_HALF = 500;
+        const ZONE_START_RADIUS = 440;
+        let zoneRadius = ZONE_START_RADIUS;
 
         function buySkin(skinName, e) {
             if (e) e.stopPropagation();
@@ -741,6 +757,7 @@
             document.getElementById('hud').style.display = 'block';
             document.getElementById('inventory-bar').style.display = 'flex';
             document.getElementById('enemies-count').style.display = isFreebuild ? 'none' : 'block';
+            document.getElementById('minimap-container').style.display = 'block';
             document.getElementById('crosshair').style.display = 'block';
             document.getElementById('controls-info').style.display = isMobile ? 'none' : 'block';
             document.getElementById('touch-toggle-btn').style.display = 'block';
@@ -751,7 +768,7 @@
             playerShield = 0;
             lastDamageTime = Date.now();
             woodAmount = isFreebuild ? 999 : 30;
-            zoneRadius = 220;
+            zoneRadius = ZONE_START_RADIUS;
             currentSlot = 0;
             isMouseDown = false;
             inBus = !isFreebuild;
@@ -775,14 +792,14 @@
                 resetGameScene();
             }
 
-            spawnMultipleBuildings(45);
-            spawnTrees(60, 12);
+            spawnMultipleBuildings(110);
+            spawnTrees(150, 30);
 
             if (!isFreebuild) {
                 spawnEnemies(25);
                 zoneMesh.visible = true;
                 document.getElementById('bus-prompt').style.display = 'block';
-                battleBusGroup.position.set(0, 90, -230);
+                battleBusGroup.position.set(0, 90, -460);
                 battleBusGroup.visible = true;
             } else {
                 zoneMesh.visible = false;
@@ -826,6 +843,7 @@
             document.getElementById('hud').style.display = 'none';
             document.getElementById('inventory-bar').style.display = 'none';
             document.getElementById('enemies-count').style.display = 'none';
+            document.getElementById('minimap-container').style.display = 'none';
             document.getElementById('protection-timer').style.display = 'none';
             document.getElementById('crosshair').style.display = 'none';
             document.getElementById('controls-info').style.display = 'none';
@@ -871,9 +889,9 @@
         function init3D() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x5c94fc);
-            scene.fog = new THREE.FogExp2(0x5c94fc, 0.005);
+            scene.fog = new THREE.FogExp2(0x5c94fc, 0.0018);
 
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1600);
 
             playerGroup = new THREE.Group();
             playerGroup.position.set(0, 0, 0);
@@ -899,7 +917,7 @@
             scene.add(light);
             scene.add(new THREE.AmbientLight(0x777777));
 
-            const mapGeo = new THREE.PlaneGeometry(500, 500);
+            const mapGeo = new THREE.PlaneGeometry(MAP_HALF * 2, MAP_HALF * 2, 32, 32);
             const mapMat = new THREE.MeshStandardMaterial({ color: 0x4e8d38, roughness: 0.8 });
             const map = new THREE.Mesh(mapGeo, mapMat);
             map.rotation.x = -Math.PI / 2;
@@ -1103,8 +1121,8 @@
                 foliage.castShadow = true;
                 treeGroup.add(foliage);
 
-                const x = (Math.random() - 0.5) * 380;
-                const z = (Math.random() - 0.5) * 380;
+                const x = (Math.random() - 0.5) * (MAP_HALF * 1.52);
+                const z = (Math.random() - 0.5) * (MAP_HALF * 1.52);
                 if (Math.hypot(x, z) < 15) continue;
 
                 treeGroup.position.set(x, 0, z);
@@ -1135,8 +1153,8 @@
 
                 bigTree.add(foliage1, foliage2, foliage3);
 
-                const x = (Math.random() - 0.5) * 380;
-                const z = (Math.random() - 0.5) * 380;
+                const x = (Math.random() - 0.5) * (MAP_HALF * 1.52);
+                const z = (Math.random() - 0.5) * (MAP_HALF * 1.52);
                 if (Math.hypot(x, z) < 20) continue;
 
                 bigTree.position.set(x, 0, z);
@@ -1153,12 +1171,12 @@
 
             for (let i = 0; i < totalCount; i++) {
                 const bGroup = new THREE.Group();
-                const x = (Math.random() - 0.5) * 380;
-                const z = (Math.random() - 0.5) * 380;
+                const x = (Math.random() - 0.5) * (MAP_HALF * 1.52);
+                const z = (Math.random() - 0.5) * (MAP_HALF * 1.52);
 
                 if (Math.hypot(x, z) < 25) continue;
 
-                const bType = i % 3;
+                const bType = i % 5;
 
                 if (bType === 0) {
                     const w1 = new THREE.Mesh(new THREE.BoxGeometry(10, 4, 0.4), houseMat); w1.position.set(0, 2, -5);
@@ -1186,13 +1204,39 @@
                     bGroup.add(pillar1, pillar2, pillar3, pillar4, floorTop, wallFence);
                     createChestAt(x, 10.2, z);
 
-                } else {
+                } else if (bType === 2) {
                     const m1 = new THREE.Mesh(new THREE.BoxGeometry(6, 2.5, 0.4), towerMat); m1.position.set(0, 1.25, -3);
                     const m2 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.5, 6), towerMat); m2.position.set(-3, 1.25, 0);
                     const m3 = new THREE.Mesh(new THREE.BoxGeometry(3, 2.5, 0.4), towerMat); m3.position.set(1.5, 1.25, 3);
 
                     bGroup.add(m1, m2, m3);
                     createChestAt(x + 1, 0, z + 1);
+
+                } else if (bType === 3) {
+                    const gw1 = new THREE.Mesh(new THREE.BoxGeometry(9, 8, 0.4), houseMat); gw1.position.set(0, 4, -4.5);
+                    const gw2 = new THREE.Mesh(new THREE.BoxGeometry(9, 8, 0.4), houseMat); gw2.position.set(0, 4, 4.5);
+                    const gw3 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 8, 9), houseMat); gw3.position.set(-4.5, 4, 0);
+                    const gw4 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 8, 9), houseMat); gw4.position.set(4.5, 4, 0);
+                    const midFloor = new THREE.Mesh(new THREE.BoxGeometry(9, 0.4, 9), towerMat); midFloor.position.set(0, 4, 0);
+
+                    const roof2 = new THREE.Mesh(new THREE.ConeGeometry(7, 3.5, 4), roofMat);
+                    roof2.position.y = 9.7; roof2.rotation.y = Math.PI / 4;
+
+                    bGroup.add(gw1, gw2, gw3, gw4, midFloor, roof2);
+                    createChestAt(x, 4.4, z);
+
+                } else {
+                    const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 16, 0.6), towerMat); p1.position.set(-3, 8, -3);
+                    const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 16, 0.6), towerMat); p2.position.set(3, 8, -3);
+                    const p3 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 16, 0.6), towerMat); p3.position.set(-3, 8, 3);
+                    const p4 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 16, 0.6), towerMat); p4.position.set(3, 8, 3);
+
+                    const midDeck = new THREE.Mesh(new THREE.BoxGeometry(7, 0.4, 7), towerMat); midDeck.position.set(0, 8, 0);
+                    const topDeck = new THREE.Mesh(new THREE.BoxGeometry(7, 0.4, 7), towerMat); topDeck.position.set(0, 16, 0);
+                    const topFence = new THREE.Mesh(new THREE.BoxGeometry(7, 1.2, 0.2), towerMat); topFence.position.set(0, 16.6, -3.4);
+
+                    bGroup.add(p1, p2, p3, p4, midDeck, topDeck, topFence);
+                    createChestAt(x, 16.2, z);
                 }
 
                 bGroup.position.set(x, 0, z);
@@ -1217,6 +1261,68 @@
             chests.push({ mesh: chestGroup, opened: false });
         }
 
+        function updateMinimap() {
+            if (!minimapCtx) {
+                const canvasEl = document.getElementById('minimap-canvas');
+                if (!canvasEl) return;
+                minimapCtx = canvasEl.getContext('2d');
+            }
+            const ctx = minimapCtx;
+            const size = 160;
+            const half = size / 2;
+            const worldScale = half / MAP_HALF;
+
+            ctx.clearRect(0, 0, size, size);
+            ctx.fillStyle = 'rgba(20,50,20,0.9)';
+            ctx.fillRect(0, 0, size, size);
+
+            const toMap = (wx, wz) => ({ mx: half + wx * worldScale, my: half + wz * worldScale });
+
+            if (zoneMesh) {
+                const r = Math.max(0, zoneRadius * worldScale);
+                ctx.beginPath();
+                ctx.arc(half, half, r, 0, Math.PI * 2);
+                ctx.strokeStyle = '#3399ff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#ffd21a';
+            chests.forEach(c => {
+                if (c.opened) return;
+                const p = toMap(c.mesh.position.x, c.mesh.position.z);
+                if (p.mx < 0 || p.mx > size || p.my < 0 || p.my > size) return;
+                ctx.beginPath();
+                ctx.arc(p.mx, p.my, 2.2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            ctx.fillStyle = '#ff3333';
+            enemies.forEach(en => {
+                const p = toMap(en.position.x, en.position.z);
+                if (p.mx < -5 || p.mx > size + 5 || p.my < -5 || p.my > size + 5) return;
+                ctx.beginPath();
+                ctx.arc(p.mx, p.my, 2.6, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            const pp = toMap(playerGroup.position.x, playerGroup.position.z);
+            ctx.save();
+            ctx.translate(pp.mx, pp.my);
+            ctx.rotate(playerGroup.rotation.y);
+            ctx.fillStyle = '#00ffcc';
+            ctx.strokeStyle = '#003322';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, -7);
+            ctx.lineTo(5, 6);
+            ctx.lineTo(-5, 6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+
         function openChest(chestObj) {
             if (chestObj.opened) return;
             chestObj.opened = true;
@@ -1225,6 +1331,7 @@
             const lootPool = [
                 { id: 'minigun', name: 'Minigun', type: 'weapon', icon: '⚙️', count: 1 },
                 { id: 'shotgun', name: 'Shotgun', type: 'weapon', icon: '💥', count: 1 },
+                { id: 'sniper', name: 'Snajperka', type: 'weapon', icon: '🎯', count: 1 },
                 { id: 'big_shield', name: 'Duża Potka', type: 'consumable', icon: '🏺', count: 1, useTime: 3500 },
                 { id: 'small_shield', name: 'Mała Potka', type: 'consumable', icon: '🧪', count: 2, useTime: 2000 },
                 { id: 'medkit', name: 'Apteczka', type: 'consumable', icon: '🩹', count: 1, useTime: 5000 }
@@ -1239,7 +1346,8 @@
             const weaponTypes = [
                 'minigun', 'minigun', 'minigun', 'minigun',
                 'shotgun', 'shotgun', 'shotgun', 'shotgun', 'shotgun', 'shotgun',
-                'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal'
+                'sniper',
+                'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal'
             ];
 
             for(let i = 0; i < count; i++) {
@@ -1248,6 +1356,7 @@
                 let enemyMatColor = 0xcc2222;
                 if (wType === 'minigun') enemyMatColor = 0x8800cc;
                 if (wType === 'shotgun') enemyMatColor = 0xffaa00;
+                if (wType === 'sniper') enemyMatColor = 0x22cc44;
 
                 const enemyGroup = new THREE.Group();
                 const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.4, 0.5), new THREE.MeshStandardMaterial({ color: enemyMatColor }));
@@ -1263,6 +1372,16 @@
                 } else if (wType === 'shotgun') {
                     gunMesh = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.8), new THREE.MeshBasicMaterial({ color: 0x332211 }));
                     gunMesh.position.set(0.4, 0.8, 0.3);
+                } else if (wType === 'sniper') {
+                    gunMesh = new THREE.Group();
+                    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 8), new THREE.MeshBasicMaterial({ color: 0x1a1a1a }));
+                    barrel.rotation.x = Math.PI / 2;
+                    barrel.position.set(0, 0, 0.2);
+                    const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.35, 8), new THREE.MeshBasicMaterial({ color: 0x0a4020 }));
+                    scope.rotation.x = Math.PI / 2;
+                    scope.position.set(0, 0.14, -0.1);
+                    gunMesh.add(barrel, scope);
+                    gunMesh.position.set(0.4, 0.85, 0.3);
                 } else {
                     gunMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.6), new THREE.MeshBasicMaterial({ color: 0x222222 }));
                     gunMesh.position.set(0.4, 0.8, 0.3);
@@ -1270,8 +1389,8 @@
                 
                 enemyGroup.add(body, head, gunMesh);
                 
-                const x = (Math.random() - 0.5) * 360;
-                const z = (Math.random() - 0.5) * 360;
+                const x = (Math.random() - 0.5) * (MAP_HALF * 1.44);
+                const z = (Math.random() - 0.5) * (MAP_HALF * 1.44);
                 enemyGroup.position.set(x, 0, z);
                 
                 enemyGroup.userData = { 
@@ -1528,6 +1647,7 @@
             let cooldown = 300;
             if (type === 'minigun') cooldown = 60;
             if (type === 'shotgun') cooldown = 750;
+            if (type === 'sniper') cooldown = 1800;
 
             if (now - lastShotTime < cooldown) return;
             lastShotTime = now;
@@ -1540,6 +1660,9 @@
             } else if (type === 'minigun') {
                 const dir = getShootDirection(0.05);
                 createPlayerBullet(dir, 7);
+            } else if (type === 'sniper') {
+                const dir = getShootDirection(0.004);
+                createPlayerBullet(dir, 999, 0xff2222, true);
             } else {
                 const dir = getShootDirection(0.015);
                 createPlayerBullet(dir, 22);
@@ -1557,14 +1680,20 @@
             return dir.normalize();
         }
 
-        function createPlayerBullet(dir, damage) {
+        function createPlayerBullet(dir, damage, color, isSniper) {
             const bullet = new THREE.Mesh(
-                new THREE.SphereGeometry(0.15, 8, 8),
-                new THREE.MeshBasicMaterial({ color: 0xffff00 })
+                new THREE.SphereGeometry(isSniper ? 0.18 : 0.15, 8, 8),
+                new THREE.MeshBasicMaterial({ color: color || 0xffff00 })
             );
 
             bullet.position.set(playerGroup.position.x, playerGroup.position.y + 1.2, playerGroup.position.z);
-            bullet.userData = { dir: dir, lifetime: 0, damage: damage };
+            bullet.userData = {
+                dir: dir,
+                lifetime: 0,
+                damage: damage,
+                speed: isSniper ? 4.5 : 1.2,
+                maxLifetime: isSniper ? 220 : 80
+            };
 
             scene.add(bullet);
             playerBullets.push(bullet);
@@ -1595,6 +1724,16 @@
                 const dir = new THREE.Vector3().subVectors(targetPos, bullet.position).normalize();
                 bullet.userData = { dir: dir, lifetime: 0, damage: 3 }; 
                 
+                scene.add(bullet);
+                enemyBullets.push(bullet);
+            } else if (type === 'sniper') {
+                const bullet = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), new THREE.MeshBasicMaterial({ color: 0x33ff66 }));
+                bullet.position.set(enemy.position.x, enemy.position.y + 1.2, enemy.position.z);
+
+                const targetPos = playerGroup.position.clone().add(new THREE.Vector3((Math.random()-0.5)*0.2, 0.8, (Math.random()-0.5)*0.2));
+                const dir = new THREE.Vector3().subVectors(targetPos, bullet.position).normalize();
+                bullet.userData = { dir: dir, lifetime: 0, damage: 999, speed: 4.5, maxLifetime: 220 };
+
                 scene.add(bullet);
                 enemyBullets.push(bullet);
             } else {
@@ -2215,6 +2354,7 @@
             if (inBus) {
                 battleBusGroup.position.add(busVelocity);
                 playerGroup.position.copy(battleBusGroup.position);
+                updateMinimap();
                 renderer.render(scene, camera);
                 return;
             }
@@ -2233,8 +2373,8 @@
 
             if (!isFreebuild) {
                 if (zoneRadius > 10) {
-                    zoneRadius -= 0.025;
-                    zoneMesh.scale.set(zoneRadius / 220, 1, zoneRadius / 220);
+                    zoneRadius -= 0.011;
+                    zoneMesh.scale.set(zoneRadius / ZONE_START_RADIUS, 1, zoneRadius / ZONE_START_RADIUS);
                 }
 
                 if (Math.hypot(playerGroup.position.x, playerGroup.position.z) > zoneRadius) {
@@ -2313,7 +2453,7 @@
 
             for (let i = playerBullets.length - 1; i >= 0; i--) {
                 let b = playerBullets[i];
-                b.position.addScaledVector(b.userData.dir, 1.2);
+                b.position.addScaledVector(b.userData.dir, b.userData.speed || 1.2);
                 b.userData.lifetime++;
 
                 let hit = false;
@@ -2394,7 +2534,7 @@
                     }
                 }
 
-                if (hit || b.userData.lifetime > 80) {
+                if (hit || b.userData.lifetime > (b.userData.maxLifetime || 80)) {
                     scene.remove(b);
                     playerBullets.splice(i, 1);
                 }
@@ -2403,7 +2543,7 @@
             if (!isFreebuild) {
                 for (let i = enemyBullets.length - 1; i >= 0; i--) {
                     let eb = enemyBullets[i];
-                    eb.position.addScaledVector(eb.userData.dir, 0.7);
+                    eb.position.addScaledVector(eb.userData.dir, eb.userData.speed || 0.7);
                     eb.userData.lifetime++;
 
                     let hitWall = false;
@@ -2460,7 +2600,7 @@
                         continue;
                     }
 
-                    if (eb.userData.lifetime > 100) {
+                    if (eb.userData.lifetime > (eb.userData.maxLifetime || 100)) {
                         scene.remove(eb);
                         enemyBullets.splice(i, 1);
                     }
@@ -2483,19 +2623,26 @@
 
                     const distToPlayer = enemy.position.distanceTo(playerGroup.position);
                     
+                    const engageRange = enemy.userData.weapon === 'sniper' ? 90 : 45;
+
                     if (now > enemy.userData.changeTargetTime) {
                         enemy.userData.changeTargetTime = now + 2000 + Math.random() * 3000;
-                        if (distToPlayer < 45) {
+                        if (distToPlayer < engageRange) {
                             enemy.userData.targetPos = playerGroup.position.clone();
                         } else {
                             enemy.userData.targetPos = new THREE.Vector3((Math.random()-0.5)*zoneRadius, 0, (Math.random()-0.5)*zoneRadius);
                         }
                     }
 
-                    const moveTarget = distToPlayer < 45 ? playerGroup.position : enemy.userData.targetPos;
+                    const moveTarget = distToPlayer < engageRange ? playerGroup.position : enemy.userData.targetPos;
                     enemy.lookAt(moveTarget.x, enemy.position.y, moveTarget.z);
                     
-                    if (distToPlayer > 4) {
+                    const sniperHoldDistance = 30;
+                    if (enemy.userData.weapon === 'sniper') {
+                        if (distToPlayer > sniperHoldDistance) {
+                            enemy.translateZ(0.045);
+                        }
+                    } else if (distToPlayer > 4) {
                         const enemySpeed = enemy.userData.weapon === 'minigun' ? 0.03 : 0.055;
                         enemy.translateZ(enemySpeed);
                     }
@@ -2503,14 +2650,17 @@
                     let cooldown = 1800;
                     if (enemy.userData.weapon === 'minigun') cooldown = 160;
                     if (enemy.userData.weapon === 'shotgun') cooldown = 2200;
+                    if (enemy.userData.weapon === 'sniper') cooldown = 4000;
 
-                    if (distToPlayer < 35 && now - enemy.userData.lastShot > cooldown) {
+                    const shootRange = enemy.userData.weapon === 'sniper' ? 90 : 35;
+                    if (distToPlayer < shootRange && now - enemy.userData.lastShot > cooldown) {
                         enemy.userData.lastShot = now;
                         enemyShoot(enemy);
                     }
                 }
             }
 
+            updateMinimap();
             renderer.render(scene, camera);
         }
 
