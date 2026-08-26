@@ -290,6 +290,38 @@
         <div class="btn-group">
             <button class="btn-main" onclick="startGame(false)">Graj BR!</button>
             <button class="btn-main btn-freebuild" onclick="startGame(true)">Freebuild</button>
+            <button class="btn-main" style="background:#8800cc; box-shadow:0 5px 15px rgba(136,0,204,0.4);" onclick="open1v1Menu()">⚔️ 1v1</button>
+        </div>
+    </div>
+
+    <div id="duel-menu" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); z-index:20; align-items:center; justify-content:center; flex-direction:column;">
+        <div style="background:#1a0b2e; border:2px solid #8800cc; border-radius:14px; padding:26px 30px; max-width:420px; width:88%; text-align:center; color:#fff;">
+            <h2 style="margin:0 0 6px 0; color:#cc66ff;">⚔️ Pojedynek 1v1</h2>
+            <p style="opacity:0.75; font-size:13px; margin-top:0;">Tryb ćwiczeniowy — bez nagród gemowych.</p>
+
+            <div id="duel-menu-main">
+                <h3 style="margin-bottom:8px;">🤖 Bot</h3>
+                <p style="font-size:12px; opacity:0.7; margin-top:0;">Wybierz przeciwnika:</p>
+                <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-bottom:18px;">
+                    <button class="btn-main" style="background:#22cc44; font-size:14px; padding:10px 14px;" onclick="startDuelBot('sniper')">🎯 Sniper</button>
+                    <button class="btn-main" style="background:#ffaa00; font-size:14px; padding:10px 14px;" onclick="startDuelBot('shotgun')">💥 Shotgun</button>
+                    <button class="btn-main" style="background:#cc2222; font-size:14px; padding:10px 14px;" onclick="startDuelBot('normal')">🔫 Normal</button>
+                    <button class="btn-main" style="background:#8800cc; font-size:14px; padding:10px 14px;" onclick="startDuelBot('minigun')">⚙️ Minigun</button>
+                </div>
+
+                <hr style="border-color:rgba(255,255,255,0.15); margin:14px 0;">
+
+                <h3 style="margin-bottom:8px;">🌐 Gracz</h3>
+                <div id="duel-search-idle">
+                    <button class="btn-main" style="background:#00ffcc; color:#000; font-size:14px; padding:10px 18px;" onclick="findDuelOpponent()">🔎 Szukaj przeciwnika</button>
+                </div>
+                <div id="duel-search-waiting" style="display:none;">
+                    <p style="color:#00ffcc; font-weight:bold;">⏳ Szukam przeciwnika...</p>
+                    <button class="btn-main" style="background:#ff0055; font-size:13px; padding:8px 16px;" onclick="cancelDuelSearch()">Anuluj</button>
+                </div>
+            </div>
+
+            <button class="btn-main" style="background:#333; margin-top:18px; font-size:13px; padding:8px 18px;" onclick="close1v1Menu()">Zamknij</button>
         </div>
     </div>
 
@@ -421,6 +453,19 @@
         let selectedSkin = 'overlost';
         let unlockedPralka = true;
         let isFreebuild = false;
+        let is1v1 = false;
+        let duelBotType = 'normal';
+        let duelIsOnline = false;
+        let duelPeerConnection = null;
+        let duelDataChannel = null;
+        let duelRemoteEnemy = null;
+        let duelDocId = null;
+        let duelRole = null; // 'offer' | 'answer'
+        let duelQueueListener = null;
+        let duelDocListener = null;
+        let duelCandidatesListener = null;
+        let duelPosInterval = null;
+        let duelSearchTimeoutId = null;
 
         function isMobileDevice() {
             return /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(navigator.userAgent)
@@ -839,6 +884,11 @@
             isEditing = false;
             isMouseDown = false;
             cancelConsumableUse();
+
+            if (is1v1 && duelIsOnline) closeDuelConnection();
+            is1v1 = false;
+            duelIsOnline = false;
+
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('hud').style.display = 'none';
             document.getElementById('inventory-bar').style.display = 'none';
@@ -1341,6 +1391,57 @@
             addItemToInventory({ ...droppedItem });
         }
 
+        function createEnemyGroup(wType, x, z) {
+            let enemyMatColor = 0xcc2222;
+            if (wType === 'minigun') enemyMatColor = 0x8800cc;
+            if (wType === 'shotgun') enemyMatColor = 0xffaa00;
+            if (wType === 'sniper') enemyMatColor = 0x22cc44;
+
+            const enemyGroup = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.4, 0.5), new THREE.MeshStandardMaterial({ color: enemyMatColor }));
+            body.position.y = 0.7;
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffaaaa }));
+            head.position.y = 1.6;
+
+            let gunMesh;
+            if (wType === 'minigun') {
+                gunMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.9, 8), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+                gunMesh.rotation.x = Math.PI / 2;
+                gunMesh.position.set(0.4, 0.8, 0.4);
+            } else if (wType === 'shotgun') {
+                gunMesh = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.8), new THREE.MeshBasicMaterial({ color: 0x332211 }));
+                gunMesh.position.set(0.4, 0.8, 0.3);
+            } else if (wType === 'sniper') {
+                gunMesh = new THREE.Group();
+                const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 8), new THREE.MeshBasicMaterial({ color: 0x1a1a1a }));
+                barrel.rotation.x = Math.PI / 2;
+                barrel.position.set(0, 0, 0.2);
+                const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.35, 8), new THREE.MeshBasicMaterial({ color: 0x0a4020 }));
+                scope.rotation.x = Math.PI / 2;
+                scope.position.set(0, 0.14, -0.1);
+                gunMesh.add(barrel, scope);
+                gunMesh.position.set(0.4, 0.85, 0.3);
+            } else {
+                gunMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.6), new THREE.MeshBasicMaterial({ color: 0x222222 }));
+                gunMesh.position.set(0.4, 0.8, 0.3);
+            }
+
+            enemyGroup.add(body, head, gunMesh);
+            enemyGroup.position.set(x, 0, z);
+
+            enemyGroup.userData = {
+                hp: 50,
+                lastShot: 0,
+                weapon: wType,
+                targetPos: new THREE.Vector3(x, 0, z),
+                changeTargetTime: 0
+            };
+
+            scene.add(enemyGroup);
+            enemies.push(enemyGroup);
+            return enemyGroup;
+        }
+
         function spawnEnemies(count) {
             enemies = [];
             const weaponTypes = [
@@ -1352,60 +1453,380 @@
 
             for(let i = 0; i < count; i++) {
                 const wType = weaponTypes[i] || 'normal';
-                
-                let enemyMatColor = 0xcc2222;
-                if (wType === 'minigun') enemyMatColor = 0x8800cc;
-                if (wType === 'shotgun') enemyMatColor = 0xffaa00;
-                if (wType === 'sniper') enemyMatColor = 0x22cc44;
-
-                const enemyGroup = new THREE.Group();
-                const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.4, 0.5), new THREE.MeshStandardMaterial({ color: enemyMatColor }));
-                body.position.y = 0.7;
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffaaaa }));
-                head.position.y = 1.6;
-                
-                let gunMesh;
-                if (wType === 'minigun') {
-                    gunMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.9, 8), new THREE.MeshBasicMaterial({ color: 0x111111 }));
-                    gunMesh.rotation.x = Math.PI / 2;
-                    gunMesh.position.set(0.4, 0.8, 0.4);
-                } else if (wType === 'shotgun') {
-                    gunMesh = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.8), new THREE.MeshBasicMaterial({ color: 0x332211 }));
-                    gunMesh.position.set(0.4, 0.8, 0.3);
-                } else if (wType === 'sniper') {
-                    gunMesh = new THREE.Group();
-                    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 8), new THREE.MeshBasicMaterial({ color: 0x1a1a1a }));
-                    barrel.rotation.x = Math.PI / 2;
-                    barrel.position.set(0, 0, 0.2);
-                    const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.35, 8), new THREE.MeshBasicMaterial({ color: 0x0a4020 }));
-                    scope.rotation.x = Math.PI / 2;
-                    scope.position.set(0, 0.14, -0.1);
-                    gunMesh.add(barrel, scope);
-                    gunMesh.position.set(0.4, 0.85, 0.3);
-                } else {
-                    gunMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.6), new THREE.MeshBasicMaterial({ color: 0x222222 }));
-                    gunMesh.position.set(0.4, 0.8, 0.3);
-                }
-                
-                enemyGroup.add(body, head, gunMesh);
-                
                 const x = (Math.random() - 0.5) * (MAP_HALF * 1.44);
                 const z = (Math.random() - 0.5) * (MAP_HALF * 1.44);
-                enemyGroup.position.set(x, 0, z);
-                
-                enemyGroup.userData = { 
-                    hp: 50,
-                    lastShot: 0, 
-                    weapon: wType,
-                    targetPos: new THREE.Vector3(x, 0, z),
-                    changeTargetTime: 0
-                };
-                
-                scene.add(enemyGroup);
-                enemies.push(enemyGroup);
+                createEnemyGroup(wType, x, z);
             }
             document.getElementById('enemy-num').innerText = enemies.length;
         }
+
+        // ==================== TRYB 1v1 ====================
+
+        function open1v1Menu() {
+            document.getElementById('duel-search-idle').style.display = 'block';
+            document.getElementById('duel-search-waiting').style.display = 'none';
+            document.getElementById('duel-menu').style.display = 'flex';
+        }
+
+        function close1v1Menu() {
+            document.getElementById('duel-menu').style.display = 'none';
+            cancelDuelSearch();
+        }
+
+        function build1v1Arena() {
+            resetGameScene();
+            zoneMesh.visible = false;
+            battleBusGroup.visible = false;
+            document.getElementById('bus-prompt').style.display = 'none';
+            inBus = false;
+
+            playerGroup.position.set(0, 0, -22);
+            playerGroup.rotation.y = 0;
+
+            const arenaWallMat = new THREE.MeshStandardMaterial({ color: 0x555566, roughness: 0.85 });
+            const segments = 16;
+            const arenaRadius = 38;
+            for (let s = 0; s < segments; s++) {
+                const ang = (s / segments) * Math.PI * 2;
+                const wall = new THREE.Mesh(new THREE.BoxGeometry(16, 7, 0.6), arenaWallMat);
+                wall.position.set(Math.cos(ang) * arenaRadius, 3.5, Math.sin(ang) * arenaRadius);
+                wall.rotation.y = -ang + Math.PI / 2;
+                const wGroup = new THREE.Group();
+                wGroup.add(wall);
+                scene.add(wGroup);
+                houses.push(wGroup);
+            }
+
+            const coverMat = new THREE.MeshStandardMaterial({ color: 0x8899aa, roughness: 0.7 });
+            const coverPositions = [[-10, -6], [10, 6], [0, 0], [-14, 12], [14, -12]];
+            coverPositions.forEach(([cx, cz]) => {
+                const cover = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.4, 3.5), coverMat);
+                cover.position.set(cx, 1.2, cz);
+                const cGroup = new THREE.Group();
+                cGroup.add(cover);
+                scene.add(cGroup);
+                houses.push(cGroup);
+            });
+
+            const arenaFloor = new THREE.Mesh(
+                new THREE.CircleGeometry(arenaRadius + 2, 32),
+                new THREE.MeshStandardMaterial({ color: 0x3a6b2e })
+            );
+            arenaFloor.rotation.x = -Math.PI / 2;
+            arenaFloor.position.y = 0.01;
+            scene.add(arenaFloor);
+
+            woodAmount = 200;
+            playerHealth = 100;
+            playerShield = 50;
+            lastDamageTime = Date.now();
+            currentSlot = 0;
+            isMouseDown = false;
+            inventory = [
+                { id: 'pistol', name: 'Pistolet', type: 'weapon', icon: '🔫', count: 1 },
+                null, null,
+                { id: 'small_shield', name: 'Mała Potka', type: 'consumable', icon: '🧪', count: 2, useTime: 2000 },
+                null, null
+            ];
+            updateHUD();
+        }
+
+        function enterDuelScreen() {
+            document.getElementById('duel-menu').style.display = 'none';
+            document.getElementById('lobby').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+            document.getElementById('inventory-bar').style.display = 'flex';
+            document.getElementById('enemies-count').style.display = 'block';
+            document.getElementById('minimap-container').style.display = 'block';
+            document.getElementById('crosshair').style.display = 'block';
+            document.getElementById('controls-info').style.display = isMobile ? 'none' : 'block';
+            document.getElementById('touch-toggle-btn').style.display = 'block';
+            document.getElementById('current-skin-display').innerText = selectedSkin.toUpperCase();
+
+            if (!renderer) {
+                init3D();
+                setupControls();
+                setupGridListeners();
+            }
+
+            build1v1Arena();
+            animate();
+
+            if (isMobile) {
+                document.getElementById('touch-controls').style.display = 'block';
+                document.getElementById('touch-look-zone').style.display = 'block';
+                if (!editorElementsInitialized) initDraggableGroups();
+                applyControlLayout();
+            } else {
+                document.body.requestPointerLock();
+            }
+        }
+
+        function startDuelBot(botType) {
+            is1v1 = true;
+            duelIsOnline = false;
+            duelBotType = botType;
+
+            enterDuelScreen();
+            createEnemyGroup(botType, 0, 22);
+            document.getElementById('enemy-num').innerText = enemies.length;
+        }
+
+        function startDuelOnline() {
+            is1v1 = true;
+            duelIsOnline = true;
+
+            enterDuelScreen();
+            duelRemoteEnemy = createEnemyGroup('normal', 0, 22);
+            duelRemoteEnemy.userData.isRemote = true;
+            duelRemoteEnemy.userData.hp = 999999; // zdrowie przeciwnika śledzone lokalnie tylko wizualnie
+            document.getElementById('enemy-num').innerText = 1;
+
+            duelPosInterval = setInterval(() => {
+                sendDuelMessage({
+                    t: 'pos',
+                    x: playerGroup.position.x, y: playerGroup.position.y, z: playerGroup.position.z,
+                    ry: playerGroup.rotation.y
+                });
+            }, 90);
+        }
+
+        // ---------- Firestore matchmaking + WebRTC ----------
+
+        const RTC_CONFIG = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] };
+
+        async function findDuelOpponent() {
+            if (!currentUser) {
+                showToast('⚠️ Zaloguj się, aby szukać przeciwnika.', true);
+                return;
+            }
+            document.getElementById('duel-search-idle').style.display = 'none';
+            document.getElementById('duel-search-waiting').style.display = 'block';
+
+            try {
+                const myUid = currentUser.uid;
+                const queueRef = db.collection('duel_queue');
+
+                await queueRef.doc(myUid).set({
+                    uid: myUid,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Szukamy kogoś, kto już czeka (pomijamy stare/martwe wpisy > 60s)
+                const waiting = await queueRef.orderBy('createdAt', 'asc').limit(10).get();
+                let opponentUid = null;
+
+                for (const doc of waiting.docs) {
+                    if (doc.id === myUid) continue;
+                    const data = doc.data();
+                    const createdAt = data.createdAt ? data.createdAt.toMillis() : 0;
+                    if (createdAt && (Date.now() - createdAt) > 60000) {
+                        queueRef.doc(doc.id).delete().catch(() => {});
+                        continue;
+                    }
+
+                    // Transakcja: kto pierwszy skasuje wpis przeciwnika, ten go "zajmuje"
+                    try {
+                        await db.runTransaction(async (tx) => {
+                            const oppRef = queueRef.doc(doc.id);
+                            const oppSnap = await tx.get(oppRef);
+                            if (!oppSnap.exists) throw new Error('already-taken');
+                            tx.delete(oppRef);
+                        });
+                        opponentUid = doc.id;
+                        break;
+                    } catch (raceErr) {
+                        continue; // ktoś inny go zajął, próbujemy kolejnego
+                    }
+                }
+
+                if (opponentUid) {
+                    await queueRef.doc(myUid).delete().catch(() => {});
+                    await createDuelAsOfferer(myUid, opponentUid);
+                } else {
+                    // Czekamy, aż ktoś nas znajdzie i utworzy pojedynek jako oferent
+                    duelQueueListener = db.collection('duels')
+                        .where('answerUid', '==', myUid)
+                        .where('status', '==', 'pending')
+                        .onSnapshot(snap => {
+                            snap.forEach(doc => {
+                                if (!duelDocId) {
+                                    joinDuelAsAnswerer(doc.id, doc.data());
+                                }
+                            });
+                        });
+                }
+
+                duelSearchTimeoutId = setTimeout(() => {
+                    if (!duelDataChannel || duelDataChannel.readyState !== 'open') {
+                        showToast('⏳ Nie znaleziono przeciwnika. Spróbuj ponownie.', true);
+                        closeDuelConnection();
+                        cancelDuelSearch();
+                    }
+                }, 30000);
+            } catch (e) {
+                console.error('Błąd wyszukiwania przeciwnika:', e);
+                showToast('❌ Błąd wyszukiwania: ' + (e.code || e.message || e), true);
+                cancelDuelSearch();
+            }
+        }
+
+        async function cancelDuelSearch() {
+            document.getElementById('duel-search-idle').style.display = 'block';
+            document.getElementById('duel-search-waiting').style.display = 'none';
+
+            if (currentUser) {
+                db.collection('duel_queue').doc(currentUser.uid).delete().catch(() => {});
+            }
+            if (duelQueueListener) { duelQueueListener(); duelQueueListener = null; }
+            if (duelSearchTimeoutId) { clearTimeout(duelSearchTimeoutId); duelSearchTimeoutId = null; }
+        }
+
+        async function createDuelAsOfferer(myUid, opponentUid) {
+            duelRole = 'offer';
+            const duelRef = db.collection('duels').doc();
+            duelDocId = duelRef.id;
+
+            const pc = new RTCPeerConnection(RTC_CONFIG);
+            duelPeerConnection = pc;
+            const channel = pc.createDataChannel('game');
+            setupDuelDataChannel(channel);
+
+            const offerCandidates = duelRef.collection('offerCandidates');
+            const answerCandidates = duelRef.collection('answerCandidates');
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) offerCandidates.add(event.candidate.toJSON());
+            };
+
+            const offerDesc = await pc.createOffer();
+            await pc.setLocalDescription(offerDesc);
+
+            await duelRef.set({
+                offerUid: myUid,
+                answerUid: opponentUid,
+                status: 'pending',
+                offer: { sdp: offerDesc.sdp, type: offerDesc.type }
+            });
+
+            duelDocListener = duelRef.onSnapshot(snap => {
+                const data = snap.data();
+                if (data && data.answer && !pc.currentRemoteDescription) {
+                    const answerDesc = new RTCSessionDescription(data.answer);
+                    pc.setRemoteDescription(answerDesc);
+                }
+            });
+
+            duelCandidatesListener = answerCandidates.onSnapshot(snap => {
+                snap.docChanges().forEach(change => {
+                    if (change.type === 'added') {
+                        pc.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(() => {});
+                    }
+                });
+            });
+        }
+
+        async function joinDuelAsAnswerer(docId, data) {
+            duelRole = 'answer';
+            duelDocId = docId;
+            cancelDuelSearch();
+
+            const duelRef = db.collection('duels').doc(docId);
+            const pc = new RTCPeerConnection(RTC_CONFIG);
+            duelPeerConnection = pc;
+
+            pc.ondatachannel = (event) => {
+                setupDuelDataChannel(event.channel);
+            };
+
+            const offerCandidates = duelRef.collection('offerCandidates');
+            const answerCandidates = duelRef.collection('answerCandidates');
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) answerCandidates.add(event.candidate.toJSON());
+            };
+
+            await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+            const answerDesc = await pc.createAnswer();
+            await pc.setLocalDescription(answerDesc);
+
+            await duelRef.update({
+                status: 'connected',
+                answer: { sdp: answerDesc.sdp, type: answerDesc.type }
+            });
+
+            duelCandidatesListener = offerCandidates.onSnapshot(snap => {
+                snap.docChanges().forEach(change => {
+                    if (change.type === 'added') {
+                        pc.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(() => {});
+                    }
+                });
+            });
+        }
+
+        function setupDuelDataChannel(channel) {
+            duelDataChannel = channel;
+            channel.onopen = () => {
+                if (duelSearchTimeoutId) { clearTimeout(duelSearchTimeoutId); duelSearchTimeoutId = null; }
+                document.getElementById('duel-search-idle').style.display = 'block';
+                document.getElementById('duel-search-waiting').style.display = 'none';
+                showToast('✅ Połączono z przeciwnikiem!');
+                startDuelOnline();
+            };
+            channel.onclose = () => {
+                if (is1v1 && duelIsOnline) {
+                    showToast('⚠️ Przeciwnik się rozłączył.', true);
+                    endGame(true);
+                }
+            };
+            channel.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    handleDuelMessage(msg);
+                } catch (e) {}
+            };
+        }
+
+        function sendDuelMessage(msg) {
+            if (duelDataChannel && duelDataChannel.readyState === 'open') {
+                duelDataChannel.send(JSON.stringify(msg));
+            }
+        }
+
+        function handleDuelMessage(msg) {
+            if (msg.t === 'pos' && duelRemoteEnemy) {
+                duelRemoteEnemy.position.set(msg.x, msg.y, msg.z);
+                duelRemoteEnemy.rotation.y = msg.ry;
+            } else if (msg.t === 'hit') {
+                takeDamage(msg.dmg);
+            } else if (msg.t === 'dead') {
+                endGame(true);
+            }
+        }
+
+        function closeDuelConnection() {
+            if (duelPosInterval) { clearInterval(duelPosInterval); duelPosInterval = null; }
+            if (duelDataChannel) { try { duelDataChannel.close(); } catch(e){} duelDataChannel = null; }
+            if (duelPeerConnection) { try { duelPeerConnection.close(); } catch(e){} duelPeerConnection = null; }
+            if (duelDocListener) { duelDocListener(); duelDocListener = null; }
+            if (duelCandidatesListener) { duelCandidatesListener(); duelCandidatesListener = null; }
+            if (duelQueueListener) { duelQueueListener(); duelQueueListener = null; }
+            if (currentUser) db.collection('duel_queue').doc(currentUser.uid).delete().catch(() => {});
+            if (duelDocId) db.collection('duels').doc(duelDocId).delete().catch(() => {});
+            duelDocId = null;
+            duelRole = null;
+            duelRemoteEnemy = null;
+            duelIsOnline = false;
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (currentUser) {
+                try { db.collection('duel_queue').doc(currentUser.uid).delete(); } catch(e) {}
+            }
+            if (duelDocId) {
+                try { db.collection('duels').doc(duelDocId).delete(); } catch(e) {}
+            }
+        });
 
         function buildStructure(type) {
             if (inBus) return;
@@ -2309,7 +2730,10 @@
 
             if (playerHealth < 0) playerHealth = 0;
             updateHUD();
-            if (playerHealth <= 0) endGame(false);
+            if (playerHealth <= 0) {
+                if (is1v1 && duelIsOnline) sendDuelMessage({ t: 'dead' });
+                endGame(false);
+            }
         }
 
         function handleNaturalHealing() {
@@ -2329,6 +2753,19 @@
             const title = document.getElementById('go-title');
             const reward = document.getElementById('reward-text');
             go.style.display = 'flex';
+
+            if (is1v1) {
+                if (victory) {
+                    title.innerText = "WYGRANA POJEDYNKU! ⚔️";
+                    title.style.color = "#00ffcc";
+                } else {
+                    title.innerText = "PRZEGRANA POJEDYNKU 💀";
+                    title.style.color = "#ff0055";
+                }
+                reward.style.display = 'none';
+                if (duelIsOnline) closeDuelConnection();
+                return;
+            }
 
             if (victory) {
                 title.innerText = "VICTORY ROYALE! 🏆";
@@ -2371,7 +2808,7 @@
             handleNaturalHealing();
             handleWeaponShooting();
 
-            if (!isFreebuild) {
+            if (!isFreebuild && !is1v1) {
                 if (zoneRadius > 10) {
                     zoneRadius -= 0.011;
                     zoneMesh.scale.set(zoneRadius / ZONE_START_RADIUS, 1, zoneRadius / ZONE_START_RADIUS);
@@ -2520,8 +2957,14 @@
                     for (let j = enemies.length - 1; j >= 0; j--) {
                         let enemy = enemies[j];
                         if (b.position.distanceTo(enemy.position.clone().add(new THREE.Vector3(0, 1, 0))) < 1.2) {
-                            enemy.userData.hp -= (b.userData.damage || 20);
                             hit = true;
+
+                            if (enemy.userData.isRemote) {
+                                sendDuelMessage({ t: 'hit', dmg: b.userData.damage || 20 });
+                                break;
+                            }
+
+                            enemy.userData.hp -= (b.userData.damage || 20);
                             
                             if (enemy.userData.hp <= 0) {
                                 scene.remove(enemy);
@@ -2609,8 +3052,9 @@
                 const now = Date.now();
                 for (let i = enemies.length - 1; i >= 0; i--) {
                     let enemy = enemies[i];
+                    if (enemy.userData.isRemote) continue;
                     
-                    if (Math.hypot(enemy.position.x, enemy.position.z) > zoneRadius) {
+                    if (!is1v1 && Math.hypot(enemy.position.x, enemy.position.z) > zoneRadius) {
                         enemy.userData.hp -= 0.5;
                         if (enemy.userData.hp <= 0) {
                             scene.remove(enemy);
