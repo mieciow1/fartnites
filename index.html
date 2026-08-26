@@ -1516,6 +1516,9 @@
             arenaFloor.position.y = 0.01;
             scene.add(arenaFloor);
 
+            const chestPositions = [[-18, -2], [18, 2], [-6, 14], [6, -14]];
+            chestPositions.forEach(([cx, cz]) => createChestAt(cx, 0, cz));
+
             woodAmount = 200;
             playerHealth = 100;
             playerShield = 50;
@@ -1801,6 +1804,10 @@
                 takeDamage(msg.dmg);
             } else if (msg.t === 'dead') {
                 endGame(true);
+            } else if (msg.t === 'build') {
+                createRemoteStructure(msg);
+            } else if (msg.t === 'destroy') {
+                removeStructureByNetId(msg.netId);
             }
         }
 
@@ -1827,6 +1834,10 @@
                 try { db.collection('duels').doc(duelDocId).delete(); } catch(e) {}
             }
         });
+
+        function genNetId() {
+            return 'n' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+        }
 
         function buildStructure(type) {
             if (inBus) return;
@@ -1886,6 +1897,58 @@
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             scene.add(mesh);
+
+            if (is1v1 && duelIsOnline) {
+                const netId = genNetId();
+                mesh.userData.netId = netId;
+                sendDuelMessage({
+                    t: 'build', stype: type, netId: netId,
+                    x: mesh.position.x, y: mesh.position.y, z: mesh.position.z,
+                    qx: mesh.quaternion.x, qy: mesh.quaternion.y, qz: mesh.quaternion.z, qw: mesh.quaternion.w
+                });
+            }
+        }
+
+        function createRemoteStructure(msg) {
+            const woodMat = new THREE.MeshStandardMaterial({ color: 0xcc7744, roughness: 0.9, side: THREE.DoubleSide });
+            let mesh;
+
+            if (msg.stype === 'wall') {
+                mesh = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 0.2), woodMat);
+                mesh.userData = { type: 'wall', tiles: Array(9).fill(true), hp: 6 };
+            } else if (msg.stype === 'ramp') {
+                mesh = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 5.5), woodMat);
+                mesh.userData = { type: 'ramp' };
+            } else if (msg.stype === 'floor') {
+                mesh = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 4), woodMat);
+                mesh.userData = { type: 'floor' };
+            } else if (msg.stype === 'cone') {
+                mesh = new THREE.Mesh(new THREE.ConeGeometry(3, 2, 4), woodMat);
+                mesh.userData = { type: 'cone' };
+            } else {
+                return;
+            }
+
+            mesh.position.set(msg.x, msg.y, msg.z);
+            mesh.quaternion.set(msg.qx, msg.qy, msg.qz, msg.qw);
+            mesh.userData.netId = msg.netId;
+            mesh.userData.isRemote = true;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            scene.add(mesh);
+            structures.push(mesh);
+            if (msg.stype === 'ramp') ramps.push(mesh);
+        }
+
+        function removeStructureByNetId(netId) {
+            for (let s = structures.length - 1; s >= 0; s--) {
+                if (structures[s].userData && structures[s].userData.netId === netId) {
+                    scene.remove(structures[s]);
+                    structures.splice(s, 1);
+                    break;
+                }
+            }
         }
 
         function setupGridListeners() {
@@ -2946,6 +3009,9 @@
                                 if (struct.userData.hp <= 0) {
                                     scene.remove(struct);
                                     structures.splice(s, 1);
+                                    if (is1v1 && duelIsOnline && struct.userData.netId) {
+                                        sendDuelMessage({ t: 'destroy', netId: struct.userData.netId });
+                                    }
                                 }
                             }
                             break;
@@ -3023,6 +3089,9 @@
                                     if (struct.userData.hp <= 0) {
                                         scene.remove(struct);
                                         structures.splice(s, 1);
+                                        if (is1v1 && duelIsOnline && struct.userData.netId) {
+                                            sendDuelMessage({ t: 'destroy', netId: struct.userData.netId });
+                                        }
                                     }
                                 }
                                 break;
