@@ -239,9 +239,10 @@
 
         <button class="btn-main" style="margin-bottom:15px; background:#333; font-size:14px; padding:8px 20px;" onclick="openControlEditor()">⚙️ Ustawienia sterowania dotykowego</button>
 
-        <p>Wybierz Skin lub kup w Sklepie (300 💎):</p>
+        <p>Wybierz skin:</p>
         
-            <div class="skin-card" onclick="selectSkin('mieciow1')" id="card-mieciow1">
+        <div class="skin-container">
+            <div class="skin-card selected" onclick="selectSkin('mieciow1')" id="card-mieciow1">
                 <div class="skin-icon">🐒</div>
                 <h3>MIECIOW1</h3>
             </div>
@@ -254,24 +255,18 @@
                 <h3>CZONY PRALKA</h3>
                 <small style="color:#ffd700;">LEGENDARNY</small>
             </div>
-
-            <!-- SKLEP: Nowe Skiny po 300 Gemów -->
-            <div class="skin-card locked" id="card-antxowany" onclick="selectSkin('antxowany')">
-                <div class="skin-icon">⚽</div>
-                <h3>ANTXOWANY</h3>
-                <button class="btn-buy" id="buy-antxowany" onclick="buySkin('antxowany', event)">Kup (300💎)</button>
+            <div class="skin-card" onclick="selectSkin('jonesy')" id="card-jonesy">
+                <div class="skin-icon">🧑</div>
+                <h3>JONESY</h3>
             </div>
-
-            <div class="skin-card locked" id="card-artur" onclick="selectSkin('artur')">
-                <div class="skin-icon">🪕</div>
-                <h3>ARTUR</h3>
-                <button class="btn-buy" id="buy-artur" onclick="buySkin('artur', event)">Kup (300💎)</button>
+            <div class="skin-card" onclick="selectSkin('nadzieja')" id="card-nadzieja">
+                <div class="skin-icon">💙</div>
+                <h3>NADZIEJA</h3>
             </div>
-
-            <div class="skin-card locked" id="card-kraken" onclick="selectSkin('kraken')">
-                <div class="skin-icon">🐙</div>
-                <h3>KRAKEN</h3>
-                <button class="btn-buy" id="buy-kraken" onclick="buySkin('kraken', event)">Kup (300💎)</button>
+            <div class="skin-card" onclick="selectSkin('nadzieja-kot')" id="card-nadzieja-kot">
+                <div class="skin-icon">🐱</div>
+                <h3>NADZIEJA KOT</h3>
+                <small style="color:#cc66ff;">NOWY</small>
             </div>
         </div>
 
@@ -314,7 +309,7 @@
     </div>
 
     <div id="hud">
-        <div style="font-weight: bold;">Skin: <span id="current-skin-display" style="color:#00ffcc;">OVERLOST</span></div>
+        <div style="font-weight: bold;">Skin: <span id="current-skin-display" style="color:#00ffcc;">MIECIOW1</span></div>
         <div class="stat-bar"><div id="shd-fill"></div><div class="bar-text" id="shd-text">0 / 100</div></div>
         <div class="stat-bar"><div id="hp-fill"></div><div class="bar-text" id="hp-text">100 / 100</div></div>
         <div id="wood-counter">🪵 Drewno: <span id="wood-amt">30</span></div>
@@ -427,18 +422,17 @@
 
     <script>
         let playerGems = 0;
+        const ALL_SKINS = ['mieciow1', 'czony', 'czony-pralka', 'jonesy', 'nadzieja', 'nadzieja-kot'];
         let unlockedSkins = {
-            'overlost': true,
             'mieciow1': true,
             'czony': true,
             'czony-pralka': true,
-            'antxowany': false,
-            'artur': false,
-            'niewiem': false,
-            'kraken': false
+            'jonesy': true,
+            'nadzieja': true,
+            'nadzieja-kot': true
         };
 
-        let selectedSkin = 'overlost';
+        let selectedSkin = 'mieciow1';
         let unlockedPralka = true;
         let isFreebuild = false;
         let is1v1 = false;
@@ -454,6 +448,7 @@
         let duelCandidatesListener = null;
         let duelPosInterval = null;
         let duelSearchTimeoutId = null;
+        let remoteVisualBullets = [];
 
         function isMobileDevice() {
             return /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(navigator.userAgent)
@@ -611,7 +606,7 @@
                     if (doc.exists) {
                         const data = doc.data();
                         if (typeof data.gems === 'number') playerGems = data.gems;
-                        if (data.unlockedSkins) Object.assign(unlockedSkins, data.unlockedSkins);
+                        if (data.unlockedSkins) ALL_SKINS.forEach(k => { if (typeof data.unlockedSkins[k] === 'boolean') unlockedSkins[k] = data.unlockedSkins[k]; });
                         if (data.username) displayName = data.username;
                         if (data.controlSettings) {
                             controlLayout = Object.assign({ positions: {}, scale: 1, opacity: 1 }, data.controlSettings);
@@ -899,6 +894,7 @@
         }
 
         function resetGameScene() {
+            clearRemoteVisualBullets();
             enemies.forEach(e => scene.remove(e));
             trees.forEach(t => scene.remove(t));
             houses.forEach(h => scene.remove(h));
@@ -986,30 +982,7 @@
         }
 
         function buildSkinMesh(type) {
-            if (type === 'overlost') {
-                const marinGroup = new THREE.Group();
-                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 1.1, 8), new THREE.MeshStandardMaterial({ color: 0x222222 }));
-                body.position.y = 0.55;
-                marinGroup.add(body);
-
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), new THREE.MeshStandardMaterial({ color: 0xffdfd3 }));
-                head.position.y = 1.2;
-                marinGroup.add(head);
-
-                const hairMat = new THREE.MeshStandardMaterial({ color: 0xffe680, roughness: 0.5 });
-                const hairBack = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.9, 0.2), hairMat);
-                hairBack.position.set(0, 1.1, -0.18);
-                const hairBangs = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.3, 0.2), hairMat);
-                hairBangs.position.set(0, 1.35, 0.12);
-                marinGroup.add(hairBack, hairBangs);
-
-                const tie = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.25, 0.05), new THREE.MeshBasicMaterial({ color: 0xff0055 }));
-                tie.position.set(0, 0.95, 0.22);
-                marinGroup.add(tie);
-
-                playerGroup.add(marinGroup);
-
-            } else if (type === 'mieciow1') {
+            if (type === 'mieciow1') {
                 const monkeyGroup = new THREE.Group();
                 const brownMat = new THREE.MeshStandardMaterial({ color: 0x5a3d28 });
                 const lightBrownMat = new THREE.MeshStandardMaterial({ color: 0xc49a6c });
@@ -1070,61 +1043,70 @@
 
                 playerGroup.add(skinBase);
 
-            } else if (type === 'antxowany') {
-                // Mbappe (Piłkarz)
-                const mbappe = new THREE.Group();
-                const shirt = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.0, 8), new THREE.MeshStandardMaterial({ color: 0x0011bb }));
-                shirt.position.y = 0.55;
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 10), new THREE.MeshStandardMaterial({ color: 0x664422 }));
-                head.position.y = 1.15;
-                const ball = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
-                ball.position.set(0.3, 0.2, 0.3);
-                mbappe.add(shirt, head, ball);
-                playerGroup.add(mbappe);
+            } else if (type === 'jonesy') {
+                const jonesy = new THREE.Group();
+                const skinMat = new THREE.MeshStandardMaterial({ color: 0xf0c8a0 });
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.33, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0x4a6fa5 }));
+                body.position.y = 0.75;
+                const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.26, 0.4, 8), new THREE.MeshStandardMaterial({ color: 0x2b2f4a }));
+                legs.position.y = 0.2;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), skinMat);
+                head.position.y = 1.4;
+                const hair = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x6b4423 }));
+                hair.position.y = 1.43;
+                const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+                eyeL.position.set(-0.1, 1.42, 0.25);
+                const eyeR = eyeL.clone();
+                eyeR.position.x = 0.1;
+                jonesy.add(body, legs, head, hair, eyeL, eyeR);
+                playerGroup.add(jonesy);
 
-            } else if (type === 'artur') {
-                // Poco z Brawl Stars (Szkielet z gitarą)
-                const poco = new THREE.Group();
-                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.9, 8), new THREE.MeshStandardMaterial({ color: 0x111111 }));
-                body.position.y = 0.5;
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 10), new THREE.MeshStandardMaterial({ color: 0xeeeeee }));
-                head.position.y = 1.1;
-                const sombrero = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.3, 0.15, 12), new THREE.MeshStandardMaterial({ color: 0x228822 }));
-                sombrero.position.y = 1.35;
-                const guitar = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.1), new THREE.MeshStandardMaterial({ color: 0xdd6600 }));
-                guitar.position.set(0.35, 0.6, 0.2);
-                poco.add(body, head, sombrero, guitar);
-                playerGroup.add(poco);
+            } else if (type === 'nadzieja' || type === 'nadzieja-kot') {
+                const hope = new THREE.Group();
+                const skinMat = new THREE.MeshStandardMaterial({ color: 0xf5d5c0 });
+                const hairMat = new THREE.MeshStandardMaterial({ color: 0x2f6fe0, roughness: 0.5 });
+                const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a24 });
 
-            } else if (type === 'niewiem') {
-                // Ptak-Mango
-                const mango = new THREE.Group();
-                const body = new THREE.Mesh(new THREE.SphereGeometry(0.4, 10, 10), new THREE.MeshStandardMaterial({ color: 0xff8800 }));
-                body.position.y = 0.6;
-                body.scale.set(0.8, 1.2, 0.8);
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffaa00 }));
-                head.position.y = 1.15;
-                const beak = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 6), new THREE.MeshStandardMaterial({ color: 0xcc0000 }));
-                beak.rotation.x = Math.PI / 2;
-                beak.position.set(0, 1.1, 0.3);
-                mango.add(body, head, beak);
-                playerGroup.add(mango);
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.8, 8), darkMat);
+                body.position.y = 0.75;
+                const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.24, 0.4, 8), new THREE.MeshStandardMaterial({ color: 0x2a2a3a }));
+                legs.position.y = 0.2;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), skinMat);
+                head.position.y = 1.4;
 
-            } else if (type === 'kraken') {
-                // Ośmiornica
-                const octopus = new THREE.Group();
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 12), new THREE.MeshStandardMaterial({ color: 0xaa00aa }));
-                head.position.y = 0.8;
-                for (let i = 0; i < 6; i++) {
-                    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.04, 0.7, 6), new THREE.MeshStandardMaterial({ color: 0x880088 }));
-                    const angle = (i / 6) * Math.PI * 2;
-                    leg.position.set(Math.cos(angle) * 0.3, 0.3, Math.sin(angle) * 0.3);
-                    leg.rotation.z = Math.cos(angle) * 0.5;
-                    leg.rotation.x = Math.sin(angle) * 0.5;
-                    octopus.add(leg);
+                const hairTop = new THREE.Mesh(new THREE.SphereGeometry(0.31, 10, 8, 0, Math.PI * 2, 0, Math.PI / 1.8), hairMat);
+                hairTop.position.y = 1.43;
+                const hairBack = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.7, 0.18), hairMat);
+                hairBack.position.set(0, 1.2, -0.2);
+
+                const lips = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.03), new THREE.MeshBasicMaterial({ color: 0x8a2be2 }));
+                lips.position.set(0, 1.32, 0.27);
+                const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+                eyeL.position.set(-0.1, 1.42, 0.25);
+                const eyeR = eyeL.clone();
+                eyeR.position.x = 0.1;
+
+                hope.add(body, legs, head, hairTop, hairBack, lips, eyeL, eyeR);
+
+                if (type === 'nadzieja-kot') {
+                    const earL = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.26, 4), hairMat);
+                    earL.position.set(-0.19, 1.74, 0);
+                    earL.rotation.z = 0.25;
+                    const earR = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.26, 4), hairMat);
+                    earR.position.set(0.19, 1.74, 0);
+                    earR.rotation.z = -0.25;
+                    const choker = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.025, 6, 14), darkMat);
+                    choker.position.y = 1.15;
+                    choker.rotation.x = Math.PI / 2;
+                    const chain = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.02, 6, 16), new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.3 }));
+                    chain.position.y = 1.0;
+                    chain.rotation.x = Math.PI / 2;
+                    const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.03, 0.7, 6), hairMat);
+                    tail.position.set(0, 0.45, -0.35);
+                    tail.rotation.x = -0.9;
+                    hope.add(earL, earR, choker, chain, tail);
                 }
-                octopus.add(head);
-                playerGroup.add(octopus);
+                playerGroup.add(hope);
             }
         }
 
@@ -1792,6 +1774,8 @@
                 takeDamage(msg.dmg);
             } else if (msg.t === 'dead') {
                 endGame(true);
+            } else if (msg.t === 'shot') {
+                spawnRemoteVisualBullet(msg);
             } else if (msg.t === 'build') {
                 createRemoteStructure(msg);
             } else if (msg.t === 'destroy') {
@@ -1808,6 +1792,7 @@
             if (duelQueueListener) { duelQueueListener(); duelQueueListener = null; }
             if (currentUser) db.collection('duel_queue').doc(currentUser.uid).delete().catch(() => {});
             if (duelDocId) db.collection('duels').doc(duelDocId).delete().catch(() => {});
+            clearRemoteVisualBullets();
             duelDocId = null;
             duelRole = null;
             duelRemoteEnemy = null;
@@ -2169,6 +2154,39 @@
 
             scene.add(bullet);
             playerBullets.push(bullet);
+
+            if (is1v1 && duelIsOnline) {
+                sendDuelMessage({
+                    t: 'shot',
+                    x: bullet.position.x, y: bullet.position.y, z: bullet.position.z,
+                    dx: dir.x, dy: dir.y, dz: dir.z,
+                    color: color || 0xffff00,
+                    size: isSniper ? 0.18 : 0.15,
+                    speed: bullet.userData.speed,
+                    maxLifetime: bullet.userData.maxLifetime
+                });
+            }
+        }
+
+        function spawnRemoteVisualBullet(msg) {
+            const bullet = new THREE.Mesh(
+                new THREE.SphereGeometry(msg.size || 0.15, 8, 8),
+                new THREE.MeshBasicMaterial({ color: msg.color === 0xffff00 ? 0xff5533 : msg.color })
+            );
+            bullet.position.set(msg.x, msg.y, msg.z);
+            bullet.userData = {
+                dir: new THREE.Vector3(msg.dx, msg.dy, msg.dz),
+                lifetime: 0,
+                speed: msg.speed || 1.2,
+                maxLifetime: msg.maxLifetime || 80
+            };
+            scene.add(bullet);
+            remoteVisualBullets.push(bullet);
+        }
+
+        function clearRemoteVisualBullets() {
+            remoteVisualBullets.forEach(b => scene.remove(b));
+            remoteVisualBullets = [];
         }
 
         function enemyShoot(enemy) {
@@ -2936,6 +2954,16 @@
                 const testPosZ = playerGroup.position.clone().add(new THREE.Vector3(0, 0, moveDir.z));
                 if (!checkCollisions(testPosZ)) {
                     playerGroup.position.z = testPosZ.z;
+                }
+            }
+
+            for (let i = remoteVisualBullets.length - 1; i >= 0; i--) {
+                const rb = remoteVisualBullets[i];
+                rb.position.addScaledVector(rb.userData.dir, rb.userData.speed);
+                rb.userData.lifetime++;
+                if (rb.userData.lifetime > rb.userData.maxLifetime) {
+                    scene.remove(rb);
+                    remoteVisualBullets.splice(i, 1);
                 }
             }
 
