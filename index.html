@@ -32,8 +32,26 @@
         .skin-card.locked { opacity: 0.7; border-color: #ff5555; }
         .skin-icon { width: 60px; height: 60px; margin: 0 auto 5px; display: flex; align-items: center; justify-content: center; font-size: 32px; background: rgba(0,0,0,0.3); border-radius: 50%; }
         
-        #card-czony-pralka { display: block; border-color: #ffd700; background: rgba(255, 215, 0, 0.15); }
-        #card-czony-pralka.selected { border-color: #ffd700; background: rgba(255, 215, 0, 0.4); }
+        .skin-card.legendary { border-color: #ffd700; background: rgba(255, 215, 0, 0.15); }
+        .skin-card.legendary.selected { border-color: #ffd700; background: rgba(255, 215, 0, 0.4); }
+        .skin-card.owned-shop { cursor: default; opacity: 0.6; }
+        .skin-card.owned-shop:hover { transform: none; border-color: transparent; background: rgba(255,255,255,0.1); }
+
+        #lobby-nav { display: flex; gap: 10px; margin: 10px 0 14px 0; }
+        .nav-btn {
+            background: rgba(255,255,255,0.12); color: #fff; border: 2px solid transparent; padding: 10px 22px;
+            font-size: 16px; font-weight: bold; border-radius: 10px; cursor: pointer; transition: 0.2s;
+        }
+        .nav-btn:hover { background: rgba(255,255,255,0.22); }
+        .nav-btn.active { background: #00ffcc; color: #000; border-color: #00ffcc; }
+        .lobby-panel { display: none; flex-direction: column; align-items: center; width: 100%; }
+        .lobby-panel.active { display: flex; }
+        .lobby-note { max-width: 520px; text-align: center; font-size: 13px; opacity: 0.85; margin: 4px 12px; }
+        #pirate-token-hud {
+            display: none; position: absolute; top: 240px; right: 20px; z-index: 5; pointer-events: none;
+            background: rgba(0,0,0,0.65); color: #ffd700; border: 2px solid #ffd700; border-radius: 8px;
+            padding: 6px 12px; font-size: 15px; font-weight: bold;
+        }
 
         .btn-buy {
             background: #ffd700; color: #000; border: none; padding: 6px 10px; font-weight: bold;
@@ -237,43 +255,32 @@
             </div>
         </div>
 
-        <button class="btn-main" style="margin-bottom:15px; background:#333; font-size:14px; padding:8px 20px;" onclick="openControlEditor()">⚙️ Ustawienia sterowania dotykowego</button>
+        <div id="lobby-nav">
+            <button class="nav-btn active" id="nav-play" onclick="showLobbyTab('play')">🎮 Graj</button>
+            <button class="nav-btn" id="nav-locker" onclick="showLobbyTab('locker')">🗄️ Szafka</button>
+            <button class="nav-btn" id="nav-shop" onclick="showLobbyTab('shop')">🛒 Sklep</button>
+        </div>
 
-        <p>Wybierz skin:</p>
-        
-        <div class="skin-container">
-            <div class="skin-card selected" onclick="selectSkin('mieciow1')" id="card-mieciow1">
-                <div class="skin-icon">🐒</div>
-                <h3>MIECIOW1</h3>
-            </div>
-            <div class="skin-card" onclick="selectSkin('czony')" id="card-czony">
-                <div class="skin-icon">🦜</div>
-                <h3>CZONY</h3>
-            </div>
-            <div class="skin-card" onclick="selectSkin('czony-pralka')" id="card-czony-pralka">
-                <div class="skin-icon">🧺</div>
-                <h3>CZONY PRALKA</h3>
-                <small style="color:#ffd700;">LEGENDARNY</small>
-            </div>
-            <div class="skin-card" onclick="selectSkin('jonesy')" id="card-jonesy">
-                <div class="skin-icon">🧑</div>
-                <h3>JONESY</h3>
-            </div>
-            <div class="skin-card" onclick="selectSkin('nadzieja')" id="card-nadzieja">
-                <div class="skin-icon">💙</div>
-                <h3>NADZIEJA</h3>
-            </div>
-            <div class="skin-card" onclick="selectSkin('nadzieja-kot')" id="card-nadzieja-kot">
-                <div class="skin-icon">🐱</div>
-                <h3>NADZIEJA KOT</h3>
-                <small style="color:#cc66ff;">NOWY</small>
+        <div class="lobby-panel active" id="panel-play">
+            <button class="btn-main" style="margin-bottom:15px; background:#333; font-size:14px; padding:8px 20px;" onclick="openControlEditor()">⚙️ Ustawienia sterowania dotykowego</button>
+            <p style="margin:6px 0;">Aktualny skin: <b id="play-skin-name" style="color:#00ffcc;"></b> <span id="play-skin-icon" style="font-size:24px;"></span></p>
+            <p class="lobby-note">Zmień skin w zakładce 🗄️ Szafka.</p>
+            <div class="btn-group">
+                <button class="btn-main" onclick="startGame(false)">Graj BR!</button>
+                <button class="btn-main btn-freebuild" onclick="startGame(true)">Freebuild</button>
+                <button class="btn-main" style="background:#8800cc; box-shadow:0 5px 15px rgba(136,0,204,0.4);" onclick="open1v1Menu()">⚔️ 1v1</button>
             </div>
         </div>
 
-        <div class="btn-group">
-            <button class="btn-main" onclick="startGame(false)">Graj BR!</button>
-            <button class="btn-main btn-freebuild" onclick="startGame(true)">Freebuild</button>
-            <button class="btn-main" style="background:#8800cc; box-shadow:0 5px 15px rgba(136,0,204,0.4);" onclick="open1v1Menu()">⚔️ 1v1</button>
+        <div class="lobby-panel" id="panel-locker">
+            <p style="margin:6px 0;">Twoje skiny — kliknij, aby założyć:</p>
+            <div class="skin-container" id="locker-grid"></div>
+        </div>
+
+        <div class="lobby-panel" id="panel-shop">
+            <p style="margin:6px 0;">Sklep — każdy skin kosztuje 500 💎. Kupiony skin trafia do szafki.</p>
+            <p class="lobby-note">🏴‍☠️ Piracki Token: każda skrzynia w meczu BR ma 1/500 szansy go dać. Wygraj mecz BR z tokenem, a odblokujesz wszystkie skiny ze sklepu za darmo!</p>
+            <div class="skin-container" id="shop-grid"></div>
         </div>
     </div>
 
@@ -325,6 +332,7 @@
     </div>
 
     <div id="use-progress"><div id="use-progress-fill"></div></div>
+    <div id="pirate-token-hud">🏴‍☠️ Piracki Token</div>
     <div id="enemies-count">Wrogowie: <span id="enemy-num">25</span></div>
     <div id="minimap-container">
         <span id="minimap-north">N</span>
@@ -422,15 +430,30 @@
 
     <script>
         let playerGems = 0;
-        const ALL_SKINS = ['mieciow1', 'czony', 'czony-pralka', 'jonesy', 'nadzieja', 'nadzieja-kot'];
-        let unlockedSkins = {
-            'mieciow1': true,
-            'czony': true,
-            'czony-pralka': true,
-            'jonesy': true,
-            'nadzieja': true,
-            'nadzieja-kot': true
+        const SKIN_PRICE = 500;
+        const PIRATE_TOKEN_CHANCE = 1 / 500;
+        const SKIN_CATALOG = {
+            'mieciow1':     { name: 'MIECIOW1',      icon: '🐒', price: 0 },
+            'czony':        { name: 'CZONY',         icon: '🦜', price: 0 },
+            'czony-pralka': { name: 'CZONY PRALKA',  icon: '🧺', price: 0, tag: 'LEGENDARNY' },
+            'jonesy':       { name: 'JONESY',        icon: '🧑', price: SKIN_PRICE },
+            'nadzieja':     { name: 'NADZIEJA',      icon: '💙', price: SKIN_PRICE },
+            'nadzieja-kot': { name: 'NADZIEJA KOT',  icon: '🐱', price: SKIN_PRICE, tag: 'NOWY' },
+            'peely':        { name: 'PEELY',         icon: '🍌', price: SKIN_PRICE },
+            'pirat':        { name: 'KAPITAN PIRAT', icon: '🏴‍☠️', price: SKIN_PRICE },
+            'ninja':        { name: 'NINJA',         icon: '🥷', price: SKIN_PRICE },
+            'robot':        { name: 'ROBOT',         icon: '🤖', price: SKIN_PRICE },
+            'kosmonauta':   { name: 'KOSMONAUTA',    icon: '👨‍🚀', price: SKIN_PRICE }
         };
+        const ALL_SKINS = Object.keys(SKIN_CATALOG);
+        const SHOP_SKINS = ALL_SKINS.filter(id => SKIN_CATALOG[id].price > 0);
+        let unlockedSkins = {};
+        ALL_SKINS.forEach(id => { unlockedSkins[id] = SKIN_CATALOG[id].price === 0; });
+        let hasPirateToken = false;
+
+        function skinDisplayName(id) {
+            return SKIN_CATALOG[id] ? SKIN_CATALOG[id].name : String(id).toUpperCase();
+        }
 
         let selectedSkin = 'mieciow1';
         let unlockedPralka = true;
@@ -554,14 +577,62 @@
         }
 
         function refreshSkinLocks() {
-            Object.keys(unlockedSkins).forEach(skin => {
-                if (unlockedSkins[skin]) {
-                    const card = document.getElementById(`card-${skin}`);
-                    if (card) card.classList.remove('locked');
-                    const btn = document.getElementById(`buy-${skin}`);
-                    if (btn) btn.style.display = 'none';
-                }
+            renderSkinMenus();
+        }
+
+        function showLobbyTab(tab) {
+            ['play', 'locker', 'shop'].forEach(t => {
+                document.getElementById('panel-' + t).classList.toggle('active', t === tab);
+                document.getElementById('nav-' + t).classList.toggle('active', t === tab);
             });
+            renderSkinMenus();
+        }
+
+        function renderSkinMenus() {
+            const locker = document.getElementById('locker-grid');
+            const shop = document.getElementById('shop-grid');
+            if (!locker || !shop) return;
+
+            locker.innerHTML = '';
+            ALL_SKINS.filter(id => unlockedSkins[id]).forEach(id => {
+                const c = SKIN_CATALOG[id];
+                const card = document.createElement('div');
+                card.className = 'skin-card' + (c.tag === 'LEGENDARNY' ? ' legendary' : '') + (id === selectedSkin ? ' selected' : '');
+                card.onclick = () => selectSkin(id);
+                card.innerHTML = '<div class="skin-icon">' + c.icon + '</div><h3>' + c.name + '</h3>' +
+                    (c.tag ? '<small style="color:#ffd700;">' + c.tag + '</small>' : '') +
+                    (id === selectedSkin ? '<small style="color:#00ffcc;">✔ ZAŁOŻONY</small>' : '');
+                locker.appendChild(card);
+            });
+
+            shop.innerHTML = '';
+            SHOP_SKINS.forEach(id => {
+                const c = SKIN_CATALOG[id];
+                const owned = !!unlockedSkins[id];
+                const card = document.createElement('div');
+                card.className = 'skin-card' + (owned ? ' owned-shop' : '');
+                card.innerHTML = '<div class="skin-icon">' + c.icon + '</div><h3>' + c.name + '</h3>' +
+                    (c.tag ? '<small style="color:#cc66ff;">' + c.tag + '</small>' : '');
+                if (owned) {
+                    card.innerHTML += '<small style="color:#00ffcc;">✅ W szafce</small>';
+                } else {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-buy';
+                    btn.innerText = 'Kup (' + c.price + '💎)';
+                    btn.onclick = (e) => buySkin(id, e);
+                    card.appendChild(btn);
+                }
+                shop.appendChild(card);
+            });
+
+            const nameEl = document.getElementById('play-skin-name');
+            const iconEl = document.getElementById('play-skin-icon');
+            if (nameEl && SKIN_CATALOG[selectedSkin]) {
+                nameEl.innerText = SKIN_CATALOG[selectedSkin].name;
+                iconEl.innerText = SKIN_CATALOG[selectedSkin].icon;
+            }
+            const gemsEl = document.getElementById('gems-count');
+            if (gemsEl) gemsEl.innerText = playerGems;
         }
 
         function showToast(msg, isError) {
@@ -607,6 +678,7 @@
                         const data = doc.data();
                         if (typeof data.gems === 'number') playerGems = data.gems;
                         if (data.unlockedSkins) ALL_SKINS.forEach(k => { if (typeof data.unlockedSkins[k] === 'boolean') unlockedSkins[k] = data.unlockedSkins[k]; });
+                        ALL_SKINS.forEach(k => { if (SKIN_CATALOG[k].price === 0) unlockedSkins[k] = true; });
                         if (data.username) displayName = data.username;
                         if (data.controlSettings) {
                             controlLayout = Object.assign({ positions: {}, scale: 1, opacity: 1 }, data.controlSettings);
@@ -692,28 +764,29 @@
 
         function buySkin(skinName, e) {
             if (e) e.stopPropagation();
-            if (playerGems >= 300 && !unlockedSkins[skinName]) {
-                playerGems -= 300;
+            const item = SKIN_CATALOG[skinName];
+            if (!item || item.price <= 0 || unlockedSkins[skinName]) return;
+
+            if (playerGems >= item.price) {
+                playerGems -= item.price;
                 unlockedSkins[skinName] = true;
-                document.getElementById('gems-count').innerText = playerGems;
-                
-                const card = document.getElementById(`card-${skinName}`);
-                card.classList.remove('locked');
-                const btn = document.getElementById(`buy-${skinName}`);
-                if (btn) btn.style.display = 'none';
-                
-                selectSkin(skinName);
+                renderSkinMenus();
+                showToast('🛒 Kupiono ' + item.name + ' — jest w szafce!');
                 saveProgress();
-            } else if (playerGems < 300) {
-                alert("Masz za mało gemów! Wygraj mecz BR, aby zdobyć 100 💎.");
+            } else {
+                alert('Masz za mało gemów! Ten skin kosztuje ' + item.price + ' 💎. Wygraj mecz BR, aby zdobyć 100 💎.');
             }
         }
 
         function selectSkin(skinName) {
             if (!unlockedSkins[skinName]) return;
             selectedSkin = skinName;
-            document.querySelectorAll('.skin-card').forEach(card => card.classList.remove('selected'));
-            document.getElementById(`card-${skinName}`).classList.add('selected');
+            renderSkinMenus();
+        }
+
+        function updatePirateTokenHUD() {
+            const el = document.getElementById('pirate-token-hud');
+            if (el) el.style.display = hasPirateToken ? 'block' : 'none';
         }
 
         function updateHUD() {
@@ -790,12 +863,14 @@
             document.getElementById('controls-info').style.display = isMobile ? 'none' : 'block';
             document.getElementById('touch-toggle-btn').style.display = 'block';
             
-            document.getElementById('current-skin-display').innerText = selectedSkin.toUpperCase();
+            document.getElementById('current-skin-display').innerText = skinDisplayName(selectedSkin);
 
             playerHealth = 100;
             playerShield = 0;
             lastDamageTime = Date.now();
             woodAmount = isFreebuild ? 999 : 30;
+            hasPirateToken = false;
+            updatePirateTokenHUD();
             zoneRadius = ZONE_START_RADIUS;
             currentSlot = 0;
             isMouseDown = false;
@@ -890,7 +965,9 @@
             
             document.getElementById('gems-count').innerText = playerGems;
             document.getElementById('lobby').style.display = 'flex';
-            if (unlockedPralka) document.getElementById('card-czony-pralka').style.display = 'block';
+            hasPirateToken = false;
+            updatePirateTokenHUD();
+            renderSkinMenus();
         }
 
         function resetGameScene() {
@@ -1107,6 +1184,112 @@
                     hope.add(earL, earR, choker, chain, tail);
                 }
                 playerGroup.add(hope);
+
+            } else if (type === 'peely') {
+                const peely = new THREE.Group();
+                const yellow = new THREE.MeshStandardMaterial({ color: 0xffe135 });
+                const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 12), yellow);
+                body.position.y = 0.85;
+                body.scale.set(0.9, 1.5, 0.9);
+                const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 0.22, 8), new THREE.MeshStandardMaterial({ color: 0x6b4a1e }));
+                stem.position.y = 1.62;
+                const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                eyeL.position.set(-0.14, 1.15, 0.33);
+                const eyeR = eyeL.clone();
+                eyeR.position.x = 0.14;
+                const pupilL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+                pupilL.position.set(-0.14, 1.15, 0.42);
+                const pupilR = pupilL.clone();
+                pupilR.position.x = 0.14;
+                const spot1 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshStandardMaterial({ color: 0x8a6a1e }));
+                spot1.position.set(0.25, 0.7, 0.3);
+                const spot2 = spot1.clone();
+                spot2.position.set(-0.2, 0.5, 0.33);
+                peely.add(body, stem, eyeL, eyeR, pupilL, pupilR, spot1, spot2);
+                playerGroup.add(peely);
+
+            } else if (type === 'pirat') {
+                const pirate = new THREE.Group();
+                const coat = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.9, 8), new THREE.MeshStandardMaterial({ color: 0x8a1c1c }));
+                coat.position.y = 0.7;
+                const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.24, 0.4, 8), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+                legs.position.y = 0.2;
+                const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.08, 8), new THREE.MeshStandardMaterial({ color: 0xffd700 }));
+                belt.position.y = 0.55;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), new THREE.MeshStandardMaterial({ color: 0xe0b48a }));
+                head.position.y = 1.4;
+                const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.05, 12), new THREE.MeshStandardMaterial({ color: 0x151515 }));
+                hatBrim.position.y = 1.62;
+                const hatTop = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.32, 0.25, 10), new THREE.MeshStandardMaterial({ color: 0x151515 }));
+                hatTop.position.y = 1.76;
+                const skull = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                skull.position.set(0, 1.78, 0.3);
+                const patch = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.09, 0.03), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+                patch.position.set(0.1, 1.44, 0.27);
+                const beard = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.12), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+                beard.position.set(0, 1.2, 0.2);
+                pirate.add(coat, legs, belt, head, hatBrim, hatTop, skull, patch, beard);
+                playerGroup.add(pirate);
+
+            } else if (type === 'ninja') {
+                const ninja = new THREE.Group();
+                const black = new THREE.MeshStandardMaterial({ color: 0x15151c });
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.8, 8), black);
+                body.position.y = 0.75;
+                const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.24, 0.4, 8), black);
+                legs.position.y = 0.2;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), black);
+                head.position.y = 1.4;
+                const slit = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.08, 0.05), new THREE.MeshStandardMaterial({ color: 0xf0c8a0 }));
+                slit.position.set(0, 1.42, 0.25);
+                const band = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.29, 0.07, 12), new THREE.MeshStandardMaterial({ color: 0xcc1111 }));
+                band.position.y = 1.52;
+                const scarf = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.04), new THREE.MeshStandardMaterial({ color: 0xcc1111 }));
+                scarf.position.set(0.12, 1.4, -0.32);
+                scarf.rotation.x = 0.4;
+                const katana = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.1, 0.05), new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.7, roughness: 0.3 }));
+                katana.position.set(-0.15, 0.95, -0.3);
+                katana.rotation.z = 0.5;
+                ninja.add(body, legs, head, slit, band, scarf, katana);
+                playerGroup.add(ninja);
+
+            } else if (type === 'robot') {
+                const robot = new THREE.Group();
+                const metal = new THREE.MeshStandardMaterial({ color: 0x8a94a0, metalness: 0.6, roughness: 0.4 });
+                const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.45), metal);
+                body.position.y = 0.8;
+                const legs = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.4, 0.4), new THREE.MeshStandardMaterial({ color: 0x4a525c, metalness: 0.6, roughness: 0.4 }));
+                legs.position.y = 0.2;
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.4), metal);
+                head.position.y = 1.45;
+                const visor = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.1, 0.05), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
+                visor.position.set(0, 1.47, 0.21);
+                const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.25, 6), metal);
+                antenna.position.y = 1.78;
+                const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff4400 }));
+                bulb.position.y = 1.93;
+                const chest = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.04), new THREE.MeshBasicMaterial({ color: 0xff8800 }));
+                chest.position.set(0, 0.85, 0.24);
+                robot.add(body, legs, head, visor, antenna, bulb, chest);
+                playerGroup.add(robot);
+
+            } else if (type === 'kosmonauta') {
+                const astro = new THREE.Group();
+                const white = new THREE.MeshStandardMaterial({ color: 0xf2f2f2 });
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.85, 10), white);
+                body.position.y = 0.7;
+                const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.28, 0.4, 10), white);
+                legs.position.y = 0.2;
+                const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.37, 0.07, 10), new THREE.MeshStandardMaterial({ color: 0xff7a00 }));
+                stripe.position.y = 0.55;
+                const faceHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 10), new THREE.MeshStandardMaterial({ color: 0xf0c8a0 }));
+                faceHead.position.y = 1.4;
+                const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 14), new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.35 }));
+                helmet.position.y = 1.4;
+                const pack = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.25), new THREE.MeshStandardMaterial({ color: 0xbbbbbb }));
+                pack.position.set(0, 0.8, -0.35);
+                astro.add(body, legs, stripe, faceHead, helmet, pack);
+                playerGroup.add(astro);
             }
         }
 
@@ -1359,6 +1542,12 @@
 
             const droppedItem = lootPool[Math.floor(Math.random() * lootPool.length)];
             addItemToInventory({ ...droppedItem });
+
+            if (!is1v1 && !isFreebuild && !hasPirateToken && Math.random() < PIRATE_TOKEN_CHANCE) {
+                hasPirateToken = true;
+                updatePirateTokenHUD();
+                showToast('🏴‍☠️ Znalazłeś Piracki Token! Wygraj mecz, a dostaniesz wszystkie skiny ze sklepu!');
+            }
         }
 
         function createEnemyGroup(wType, x, z) {
@@ -1514,7 +1703,7 @@
             document.getElementById('crosshair').style.display = 'block';
             document.getElementById('controls-info').style.display = isMobile ? 'none' : 'block';
             document.getElementById('touch-toggle-btn').style.display = 'block';
-            document.getElementById('current-skin-display').innerText = selectedSkin.toUpperCase();
+            document.getElementById('current-skin-display').innerText = skinDisplayName(selectedSkin);
 
             if (!renderer) {
                 init3D();
@@ -2844,7 +3033,16 @@
                 // Dodawanie Gemów za wygraną (100💎)
                 playerGems += 100;
                 reward.innerText = "🎁 ODBLOKOWANO: CZONY NA PRALCE + 100 💎 GEMÓW!";
+                if (hasPirateToken) {
+                    SHOP_SKINS.forEach(id => { unlockedSkins[id] = true; });
+                    reward.innerText += "\n🏴‍☠️ PIRACKI TOKEN: WSZYSTKIE SKINY ZE SKLEPU TRAFIŁY DO SZAFKI!";
+                    hasPirateToken = false;
+                    updatePirateTokenHUD();
+                }
                 reward.style.display = 'block';
+                reward.style.whiteSpace = 'pre-line';
+                reward.style.textAlign = 'center';
+                renderSkinMenus();
                 saveProgress();
             } else {
                 title.innerText = "ELIMINACJA! 💀";
@@ -3192,6 +3390,8 @@
             updateMinimap();
             renderer.render(scene, camera);
         }
+
+        renderSkinMenus();
 
         window.addEventListener('resize', () => {
             if (camera && renderer) {
